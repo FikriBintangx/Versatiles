@@ -5,14 +5,12 @@ import { supabase } from '@/lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart
 } from 'recharts';
-import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
+import { ResponsiveGridLayout, Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-const ResponsiveGridLayout = WidthProvider(Responsive);
 import { 
   Play, 
   GitCommit, 
