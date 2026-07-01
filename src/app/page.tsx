@@ -14,7 +14,9 @@ import {
   RefreshCw, 
   Sparkles,
   Heart,
-  AlertCircle
+  AlertCircle,
+  Compass,
+  ArrowRight
 } from 'lucide-react';
 
 interface Agent {
@@ -23,7 +25,6 @@ interface Agent {
   role: string;
   status: string;
   last_active: string;
-  avatar_url?: string;
 }
 
 interface Commit {
@@ -36,7 +37,6 @@ interface Commit {
   modified_files: string[];
   commit_time: string;
   sha: string;
-  agent?: Agent;
 }
 
 interface IssueTask {
@@ -47,12 +47,27 @@ interface IssueTask {
   subtasks: { title: string; done: boolean }[];
 }
 
+interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  owner: string;
+  description: string;
+  html_url: string;
+}
+
 export default function Dashboard() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [commits, setCommits] = useState<Commit[]>([]);
   const [tasks, setTasks] = useState<IssueTask[]>([]);
   const [activeRepo, setActiveRepo] = useState<any>(null);
   
+  // State untuk GitHub Repositories
+  const [gitToken, setGitToken] = useState<string | null>(null);
+  const [gitRepos, setGitRepos] = useState<GitHubRepo[]>([]);
+  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+  const [repoError, setRepoError] = useState('');
+
   // State untuk form simulator
   const [selectedAgent, setSelectedAgent] = useState('UI Agent');
   const [simMessage, setSimMessage] = useState('feat(login): [x] UI redesign login page responsive');
@@ -75,10 +90,10 @@ export default function Dashboard() {
       .order('name', { ascending: true });
     if (agentsData) setAgents(agentsData);
 
-    // 3. Get Commits with Agent Join
+    // 3. Get Commits
     const { data: commitsData } = await supabase
       .from('commits')
-      .select('*, agent:agents(*)')
+      .select('*')
       .order('commit_time', { ascending: false })
       .limit(10);
     if (commitsData) setCommits(commitsData);
@@ -92,7 +107,20 @@ export default function Dashboard() {
     if (tasksData) setTasks(tasksData);
   };
 
+  // Tangkap token github dari url callback
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('access_token');
+    if (token) {
+      setGitToken(token);
+      localStorage.setItem('gh_access_token', token);
+      // Bersihkan url query parameter agar bersih
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      const savedToken = localStorage.getItem('gh_access_token');
+      if (savedToken) setGitToken(savedToken);
+    }
+    
     fetchData();
 
     // Set up Realtime subscriptions
@@ -124,6 +152,49 @@ export default function Dashboard() {
     };
   }, []);
 
+  // Fetch daftar repository GitHub user
+  useEffect(() => {
+    if (gitToken) {
+      setIsLoadingRepos(true);
+      fetch('/api/github/repos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: gitToken })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.repos) {
+            setGitRepos(data.repos);
+          } else {
+            setRepoError(data.error || 'Gagal memuat repositori');
+          }
+        })
+        .catch(err => setRepoError(err.message))
+        .finally(() => setIsLoadingRepos(false));
+    }
+  }, [gitToken]);
+
+  const selectRepo = async (repo: GitHubRepo) => {
+    try {
+      const { data, error } = await supabase
+        .from('repositories')
+        .upsert({
+          github_repo_id: repo.id,
+          name: repo.name,
+          full_name: repo.full_name,
+          owner: repo.owner,
+        }, { onConflict: 'github_repo_id' })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      setActiveRepo(data);
+      alert(`Berhasil mengkoneksikan repositori: ${repo.full_name}`);
+    } catch (err: any) {
+      alert(`Gagal menyimpan repo: ${err.message}`);
+    }
+  };
+
   const handleSimulate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSimulating(true);
@@ -153,327 +224,311 @@ export default function Dashboard() {
     }
   };
 
-  // Hitung statistik kontribusi harian secara dinamis dari commit
+  const handleLogoutGitHub = () => {
+    localStorage.removeItem('gh_access_token');
+    setGitToken(null);
+    setGitRepos([]);
+  };
+
+  // Hitung statistik
   const todayCommits = commits.filter(c => {
     const today = new Date().toISOString().split('T')[0];
     const commitDate = new Date(c.commit_time).toISOString().split('T')[0];
     return today === commitDate;
   });
 
-  const getAgentCommitsCount = (agentName: string) => {
-    return commits.filter(c => c.author_name === agentName).length;
-  };
-
   return (
-    <main className="max-w-7xl mx-auto px-4 py-8 md:px-8">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 pb-6 border-b border-white/5">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="h-4 w-4 rounded-full bg-emerald-500 animate-pulse" />
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              AI Agent Orchestrator
-            </h1>
-          </div>
-          <p className="text-sm text-slate-400 mt-2">
-            GitHub-driven Realtime project management dashboard & agent monitor.
-          </p>
-        </div>
+    <div className="min-h-screen text-sky-900 bg-slate-50 relative selection:bg-sky-500/20 uppercase tracking-wider font-sans text-xs">
+      
+      {/* Texture Overlay (Gaya Portfolio Hermes) */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-50 opacity-[0.04] mix-blend-multiply" 
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
+      />
 
-        <div className="flex items-center gap-3">
-          <div className="glass px-4 py-2 rounded-lg flex items-center gap-3 text-sm">
-            <Radio className="h-4 w-4 text-emerald-400 animate-pulse" />
-            <span className="text-slate-300 font-mono text-xs">
-              {activeRepo ? activeRepo.full_name : 'No Repo Connected'}
-            </span>
-          </div>
-          <button 
-            onClick={fetchData}
-            className="p-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Container utama dengan lebar penuh yang memanjang */}
+      <div className="max-w-[1600px] mx-auto px-6 py-8 relative z-10 space-y-12">
         
-        {/* Kolom Kiri & Tengah (Dashboard Konten Utama) */}
-        <div className="lg:col-span-2 space-y-8">
+        {/* Header Grid Border Khas Hermes */}
+        <header className="grid grid-cols-1 md:grid-cols-4 border-t border-b border-sky-900/60 text-sky-950 items-center">
+          <div className="p-4 border-r border-sky-900/60 font-serif italic text-2xl font-black tracking-normal text-sky-950">
+            ORCHESTRATOR
+          </div>
+          <div className="p-4 border-r border-sky-900/60 font-mono text-[10px] tracking-widest text-sky-900/70">
+            [ STATUS: <span className="text-emerald-600 font-bold">ACTIVE</span> ]
+          </div>
+          <div className="p-4 border-r border-sky-900/60 font-mono text-[10px] tracking-widest text-sky-900/70">
+            REPO: {activeRepo ? activeRepo.name : 'NONE CONNECTED'}
+          </div>
+          <div className="p-4 flex justify-between items-center">
+            {!gitToken ? (
+              <a 
+                href="/api/auth/github"
+                className="flex items-center gap-2 bg-sky-900 hover:bg-sky-800 text-slate-100 font-mono font-bold px-3 py-1.5 border border-sky-950 transition-all text-[10px]"
+              >
+                <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                CONNECT GITHUB
+              </a>
+            ) : (
+              <button 
+                onClick={handleLogoutGitHub}
+                className="flex items-center gap-2 bg-rose-900 hover:bg-rose-800 text-slate-100 font-mono font-bold px-3 py-1.5 border border-rose-950 transition-all text-[10px]"
+              >
+                DISCONNECT
+              </button>
+            )}
+            <button 
+              onClick={fetchData}
+              className="p-1.5 border border-sky-900/40 hover:bg-sky-900/10 text-sky-900 transition-all rounded"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Section 1: Detail Pengambil List Repo */}
+        {gitToken && (
+          <section className="border border-sky-900/40 p-6 bg-sky-900/[0.02]">
+            <h2 className="font-serif italic text-lg font-extrabold text-sky-950 mb-3 flex items-center gap-2">
+              <Compass className="h-4 w-4" />
+              PILIH REPOSITORI AKTIF GITHUB
+            </h2>
+            <p className="text-[10px] text-sky-900/60 font-mono mb-4">KLIK PADA REPO UNTUK MENJADIKANNYA SUMBER UTAMA DASHBOARD</p>
+            
+            {isLoadingRepos ? (
+              <div className="font-mono text-sky-800 text-xs py-2">Memuat semua repositori GitHub Anda...</div>
+            ) : repoError ? (
+              <div className="font-mono text-rose-700 text-xs py-2">Gagal: {repoError}</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-56 overflow-y-auto pr-2">
+                {gitRepos.map((repo) => (
+                  <button 
+                    key={repo.id}
+                    onClick={() => selectRepo(repo)}
+                    className={`text-left p-3 border font-mono text-[10px] transition-all flex flex-col justify-between h-20 ${
+                      activeRepo?.github_repo_id === repo.id
+                        ? 'bg-sky-900 text-white border-sky-950'
+                        : 'border-sky-900/20 bg-white hover:bg-sky-900/5 text-sky-900'
+                    }`}
+                  >
+                    <span className="font-bold truncate w-full">{repo.name}</span>
+                    <span className="opacity-60 text-[9px] truncate w-full">{repo.owner}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Dashboard Grid 3 Kolom */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Section 1: AI Agent Status */}
-          <section>
-            <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
-              <Activity className="h-4 w-4 text-emerald-400" />
-              AI Agent Status
+          {/* Kolom Kiri: AI Agent Grid */}
+          <div className="space-y-6">
+            <h2 className="font-serif italic text-lg font-black text-sky-950 border-b border-sky-900/40 pb-2 flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              AI AGENTS STATUS
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
               {agents.map((agent) => (
-                <div key={agent.id} className="glass glass-hover p-5 rounded-xl flex flex-col justify-between h-44">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                        {agent.role === 'UI' && <Layers className="h-5 w-5 text-emerald-400" />}
-                        {agent.role === 'Backend' && <Server className="h-5 w-5 text-blue-400" />}
-                        {agent.role === 'Testing' && <CheckSquare className="h-5 w-5 text-amber-400" />}
-                        {agent.role === 'DevOps' && <Terminal className="h-5 w-5 text-purple-400" />}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-white text-base">{agent.name}</h3>
-                        <span className="text-xs text-slate-400 uppercase tracking-wider">{agent.role} Agent</span>
-                      </div>
+                <div key={agent.id} className="border border-sky-900/40 p-4 bg-white hover:border-sky-900 transition-all flex flex-col justify-between h-36">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-sky-950 text-sm tracking-wide">{agent.name}</h3>
+                      <span className="text-[10px] text-sky-900/50 uppercase tracking-widest">{agent.role} Agent</span>
                     </div>
-                    
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
-                      agent.status === 'Working' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                      agent.status === 'Waiting Review' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                      'bg-slate-500/10 text-slate-400 border border-slate-500/10'
+                    <span className={`px-2 py-0.5 border text-[9px] font-bold ${
+                      agent.status === 'Working' ? 'border-emerald-600 bg-emerald-50 text-emerald-700 animate-pulse' :
+                      agent.status === 'Waiting Review' ? 'border-amber-600 bg-amber-50 text-amber-700' :
+                      'border-sky-900/20 bg-slate-100 text-sky-900/60'
                     }`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${
-                        agent.status === 'Working' ? 'bg-emerald-400 animate-ping' :
-                        agent.status === 'Waiting Review' ? 'bg-amber-400' :
-                        'bg-slate-500'
-                      }`} />
                       {agent.status}
                     </span>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                  <div className="pt-3 border-t border-sky-900/10 flex justify-between items-center text-[10px] text-sky-900/60">
                     <div>
-                      <p className="text-[10px] text-slate-500 uppercase">Aktivitas Terakhir</p>
-                      <p className="font-medium text-slate-300 mt-0.5">
-                        {commits.find(c => c.author_name === agent.name)?.message || 'Belum ada commit'}
-                      </p>
+                      <span className="text-[9px] opacity-50 uppercase font-mono block">LAST ACTIVITY</span>
+                      <span className="font-bold text-sky-950 truncate max-w-[200px] block">
+                        {commits.find(c => c.author_name === agent.name)?.message || 'NO COMMITS YET'}
+                      </span>
                     </div>
-                    <span className="text-slate-500 text-[10px] whitespace-nowrap ml-2">
+                    <span className="font-mono text-[9px]">
                       {new Date(agent.last_active).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
               ))}
             </div>
-          </section>
+          </div>
 
-          {/* Section 2: Activity Timeline */}
-          <section>
-            <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
-              <GitCommit className="h-4 w-4 text-emerald-400" />
-              Activity Timeline
+          {/* Kolom Tengah: Activity Timeline */}
+          <div className="space-y-6">
+            <h2 className="font-serif italic text-lg font-black text-sky-950 border-b border-sky-900/40 pb-2 flex items-center gap-2">
+              <GitCommit className="h-4 w-4" />
+              ACTIVITY TIMELINE
             </h2>
 
-            <div className="glass rounded-xl p-6 space-y-6">
+            <div className="border border-sky-900/40 p-6 bg-white space-y-6 h-[460px] overflow-y-auto">
               {commits.length === 0 ? (
-                <div className="text-center py-10 text-slate-500 text-sm">
-                  Belum ada aktivitas commit. Silakan gunakan panel simulator di samping untuk mengirim commit.
+                <div className="text-center py-20 text-sky-900/40 font-mono">
+                  BELUM ADA AKTIVITAS COMMIT MASUK
                 </div>
               ) : (
-                <div className="relative border-l-2 border-white/5 pl-6 space-y-8">
+                <div className="relative border-l border-sky-900/20 pl-4 space-y-6">
                   {commits.map((commit) => (
                     <div key={commit.id} className="relative">
                       {/* Timeline Dot */}
-                      <span className="absolute -left-[31px] top-1.5 h-4 w-4 rounded-full bg-emerald-500/10 border-2 border-emerald-500 flex items-center justify-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      </span>
+                      <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-sky-900 border border-sky-950" />
 
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                        <div>
-                          <span className="font-semibold text-white hover:underline cursor-pointer">
-                            {commit.author_name}
-                          </span>
-                          <span className="text-xs text-slate-400 ml-2">on {commit.branch}</span>
-                        </div>
-                        <span className="text-xs text-slate-500">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-sky-950">{commit.author_name}</span>
+                        <span className="font-mono text-sky-900/50">
                           {new Date(commit.commit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
 
-                      <p className="text-sm font-mono text-slate-300 mt-1 bg-white/5 p-2.5 rounded-lg border border-white/5">
+                      <p className="text-[11px] font-mono text-sky-900/80 bg-slate-100/60 p-2 border border-sky-900/10 mt-1 uppercase">
                         {commit.message}
                       </p>
 
-                      <div className="flex items-center gap-4 mt-2.5 text-xs text-slate-500">
-                        <span className="font-mono text-emerald-400 font-semibold">+{commit.added_lines} lines</span>
-                        <span className="font-mono text-rose-400 font-semibold">-{commit.deleted_lines} lines</span>
-                        <span>•</span>
-                        <span>{commit.modified_files.length} file diubah</span>
-                        <span>•</span>
-                        <span className="font-mono text-slate-400">{commit.sha.substring(0, 7)}</span>
+                      <div className="flex items-center gap-3 mt-1.5 text-[9px] text-sky-900/40 font-mono">
+                        <span className="text-emerald-700">+{commit.added_lines}</span>
+                        <span className="text-rose-700">-{commit.deleted_lines}</span>
+                        <span>{commit.branch}</span>
+                        <span>{commit.sha.substring(0, 7)}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          </section>
+          </div>
 
-        </div>
-
-        {/* Kolom Kanan (Statistik & Simulator Control) */}
-        <div className="space-y-8">
-          
-          {/* Task Progress Tracking */}
-          <section>
-            <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
-              <CheckSquare className="h-4 w-4 text-emerald-400" />
-              Project Progress
+          {/* Kolom Kanan: Detail & AI Insight */}
+          <div className="space-y-6">
+            <h2 className="font-serif italic text-lg font-black text-sky-950 border-b border-sky-900/40 pb-2 flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI INSIGHT & TRACKER
             </h2>
 
-            <div className="glass p-6 rounded-xl space-y-6">
+            {/* Project Progress */}
+            <div className="border border-sky-900/40 p-5 bg-white space-y-4">
               {tasks.map((task) => (
-                <div key={task.id} className="space-y-4">
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-white text-base">{task.title}</h3>
-                    <span className="text-xs text-emerald-400 font-mono font-semibold bg-emerald-500/10 px-2 py-0.5 rounded">
+                <div key={task.id} className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-sky-950 text-xs">{task.title}</span>
+                    <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 border border-emerald-600/30">
                       {task.progress}%
                     </span>
                   </div>
 
-                  {/* Progress Bar */}
-                  <div className="w-full bg-white/5 h-2.5 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500" 
-                      style={{ width: `${task.progress}%` }}
-                    />
+                  <div className="w-full bg-slate-100 h-1.5 border border-sky-900/10">
+                    <div className="bg-sky-900 h-full transition-all duration-500" style={{ width: `${task.progress}%` }} />
                   </div>
 
-                  {/* Subtask Checklists */}
-                  <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[9px]">
                     {task.subtasks.map((st, i) => (
                       <div 
                         key={i} 
-                        className={`flex items-center gap-2.5 p-2 rounded-lg border text-xs font-semibold ${
+                        className={`flex items-center gap-2 p-1.5 border ${
                           st.done 
-                            ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' 
-                            : 'bg-white/5 border-white/5 text-slate-400'
+                            ? 'bg-emerald-50/50 border-emerald-900/20 text-emerald-800' 
+                            : 'bg-white border-sky-900/10 text-sky-900/50'
                         }`}
                       >
-                        <span className={`h-2 w-2 rounded-full ${st.done ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                        <span className={`h-1.5 w-1.5 rounded-full ${st.done ? 'bg-emerald-600' : 'bg-slate-300'}`} />
                         {st.title}
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
-              {tasks.length === 0 && (
-                <div className="text-center py-4 text-slate-500 text-xs">
-                  Belum ada issue / progress tracker terdaftar.
-                </div>
-              )}
             </div>
-          </section>
 
-          {/* AI Daily Summary */}
-          <section>
-            <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-emerald-400" />
-              AI Summary (Daily Insight)
-            </h2>
-
-            <div className="glass p-6 rounded-xl space-y-4">
-              <div className="flex items-center gap-2 text-xs text-slate-400 bg-white/5 p-3 rounded-lg border border-white/5">
-                <Sparkles className="h-4 w-4 text-indigo-400 animate-pulse" />
-                <span>Rangkuman aktivitas Agent hari ini:</span>
-              </div>
-              <ul className="space-y-2 text-sm text-slate-300 pl-4 list-disc marker:text-emerald-400">
+            {/* AI Summary */}
+            <div className="border border-sky-900/40 p-5 bg-white space-y-3">
+              <span className="font-bold text-sky-950 block text-xs">AI HEALTH DAILY SUMMARY</span>
+              <ul className="space-y-2 text-sky-900/70 font-mono text-[10px] pl-3 list-disc marker:text-sky-900">
                 {todayCommits.length === 0 ? (
-                  <p className="text-slate-500 text-xs pl-0 list-none">Belum ada commit masuk hari ini untuk dibuat rangkuman.</p>
+                  <p className="text-sky-900/40 text-[9px] list-none pl-0">BELUM ADA DATA AKTIVITAS UNTUK HARI INI.</p>
                 ) : (
                   <>
-                    <li>
-                      <strong>UI Agent</strong>: Mendesain halaman Login responsive dan fungsional.
-                    </li>
-                    <li>
-                      <strong>Backend Agent</strong>: Menerapkan JWT Authentikasi dan verifikasi token.
-                    </li>
-                    <li>
-                      <strong>Testing Agent</strong>: Menjalankan unit test dengan coverage mencapai 85%.
-                    </li>
+                    <li>UI AGENT: MENDESAIN HALAMAN LOGIN RESPONSIVE DAN FUNGSIONAL.</li>
+                    <li>BACKEND AGENT: MENERAPKAN JWT AUTHENTIKASI DAN VERIFIKASI TOKEN.</li>
+                    <li>TESTING AGENT: MENJALANKAN UNIT TEST DENGAN COVERAGE MENCAPAI 85%.</li>
                   </>
                 )}
               </ul>
-
-              <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-2 justify-between">
-                <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                  <Heart className="h-3 w-3 text-red-500 fill-red-500" />
-                  Health Status:
-                </span>
-                <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">
-                  🟢 Healthy
-                </span>
+              <div className="pt-3 border-t border-sky-900/10 flex justify-between items-center text-[10px]">
+                <span className="opacity-50 font-mono">SYSTEM HEALTH</span>
+                <span className="text-emerald-700 font-bold">🟢 HEALTHY</span>
               </div>
             </div>
-          </section>
 
-          {/* Webhook & Commit Simulator Control */}
-          <section>
-            <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-emerald-400" />
-              Agent Commit Simulator
-            </h2>
-
-            <form onSubmit={handleSimulate} className="glass p-6 rounded-xl space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Pilih AI Agent</label>
-                <select 
-                  value={selectedAgent} 
-                  onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="UI Agent" className="bg-slate-900">UI Agent</option>
-                  <option value="Backend Agent" className="bg-slate-900">Backend Agent</option>
-                  <option value="Testing Agent" className="bg-slate-900">Testing Agent</option>
-                  <option value="DevOps Agent" className="bg-slate-900">DevOps Agent</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Commit Message</label>
+            {/* Agent Simulator */}
+            <div className="border border-sky-900/40 p-5 bg-white space-y-4">
+              <span className="font-bold text-sky-950 block text-xs">SIMULATE AGENT COMMIT</span>
+              <form onSubmit={handleSimulate} className="space-y-3">
+                <div className="flex gap-2">
+                  <select 
+                    value={selectedAgent} 
+                    onChange={(e) => setSelectedAgent(e.target.value)}
+                    className="flex-1 bg-slate-50 border border-sky-900/20 p-2 text-sky-950 focus:outline-none text-[10px]"
+                  >
+                    <option value="UI Agent">UI Agent</option>
+                    <option value="Backend Agent">Backend Agent</option>
+                    <option value="Testing Agent">Testing Agent</option>
+                    <option value="DevOps Agent">DevOps Agent</option>
+                  </select>
+                  <input 
+                    type="number" 
+                    value={filesCount} 
+                    onChange={(e) => setFilesCount(Number(e.target.value))}
+                    min="1" 
+                    max="10"
+                    className="w-12 bg-slate-50 border border-sky-900/20 p-2 text-center text-sky-950 focus:outline-none text-[10px]"
+                    required
+                  />
+                </div>
                 <input 
                   type="text" 
                   value={simMessage} 
                   onChange={(e) => setSimMessage(e.target.value)}
-                  placeholder="e.g. feat(login): redesign login page"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="COMMIT MESSAGE"
+                  className="w-full bg-slate-50 border border-sky-900/20 p-2 text-sky-950 focus:outline-none text-[10px]"
                   required
                 />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Jumlah File Diubah</label>
-                <input 
-                  type="number" 
-                  value={filesCount} 
-                  onChange={(e) => setFilesCount(Number(e.target.value))}
-                  min="1" 
-                  max="15"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSimulating}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                <Play className="h-4 w-4" />
-                {isSimulating ? 'Memproses...' : 'Simulasikan Push Commit'}
-              </button>
-
+                <button
+                  type="submit"
+                  disabled={isSimulating}
+                  className="w-full bg-sky-900 hover:bg-sky-850 disabled:bg-sky-950/60 text-white font-mono font-bold py-2 border border-sky-950 transition-all text-[10px] flex items-center justify-center gap-2"
+                >
+                  <Play className="h-3 w-3" />
+                  {isSimulating ? 'SIMULATING...' : 'SIMULATE COMMIT'}
+                </button>
+              </form>
               {simStatus && (
-                <div className="text-xs p-2.5 rounded bg-white/5 border border-white/5 text-slate-300 flex items-center gap-2 animate-fade-in">
-                  <AlertCircle className="h-4 w-4 text-emerald-400" />
-                  <span className="font-mono">{simStatus}</span>
+                <div className="p-2 border border-sky-900/20 bg-slate-50 font-mono text-[9px] text-sky-950">
+                  {simStatus}
                 </div>
               )}
-            </form>
-          </section>
+            </div>
+
+          </div>
 
         </div>
 
+        {/* Footer */}
+        <footer className="border-t border-sky-900/60 pt-4 flex justify-between items-center text-sky-900/50 font-mono text-[9px]">
+          <span>© 2026 FIKRI BINTANG PURNOMO - ORCHESTRATOR DASHBOARD</span>
+          <span>V1.0.0</span>
+        </footer>
+
       </div>
-    </main>
+    </div>
   );
 }
