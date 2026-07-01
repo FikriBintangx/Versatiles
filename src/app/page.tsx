@@ -18,7 +18,8 @@ import {
   Compass,
   ArrowRight,
   Plus,
-  Target
+  Target,
+  FileText
 } from 'lucide-react';
 
 interface Agent {
@@ -66,6 +67,13 @@ interface Goal {
   created_at: string;
 }
 
+interface DailyReport {
+  id: string;
+  report_date: string;
+  content: string;
+  summary_short: string;
+}
+
 export default function Dashboard() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [commits, setCommits] = useState<Commit[]>([]);
@@ -77,6 +85,12 @@ export default function Dashboard() {
   const [newGoalTitle, setNewGoalTitle] = useState('');
   const [newGoalDesc, setNewGoalDesc] = useState('');
   const [isAddingGoal, setIsAddingGoal] = useState(false);
+
+  // State untuk Daily AI Report
+  const [currentReport, setCurrentReport] = useState<DailyReport | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportWarning, setReportWarning] = useState('');
 
   // State untuk GitHub Repositories
   const [gitToken, setGitToken] = useState<string | null>(null);
@@ -116,7 +130,7 @@ export default function Dashboard() {
       .limit(10);
     if (commitsData) setCommits(commitsData);
 
-    // 4. Get active tasks
+    // 4. Get active tasks & goals & reports
     if (currentRepo) {
       const { data: tasksData } = await supabase
         .from('issues_tasks')
@@ -126,15 +140,47 @@ export default function Dashboard() {
         .limit(1);
       if (tasksData) setTasks(tasksData);
 
-      // 5. Get Goals
+      // Get Goals
       const { data: goalsData } = await supabase
         .from('goals')
         .select('*')
         .eq('repo_id', currentRepo.id)
         .order('created_at', { ascending: false });
       if (goalsData) setGoals(goalsData);
+
+      // Get Daily Report
+      const { data: reportData } = await supabase
+        .from('daily_reports')
+        .select('*')
+        .eq('repo_id', currentRepo.id)
+        .eq('report_date', reportDate)
+        .limit(1);
+      if (reportData && reportData.length > 0) {
+        setCurrentReport(reportData[0]);
+      } else {
+        setCurrentReport(null);
+      }
     }
   };
+
+  // Trigger fetch ulang saat ganti tanggal laporan
+  useEffect(() => {
+    if (activeRepo) {
+      supabase
+        .from('daily_reports')
+        .select('*')
+        .eq('repo_id', activeRepo.id)
+        .eq('report_date', reportDate)
+        .limit(1)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setCurrentReport(data[0]);
+          } else {
+            setCurrentReport(null);
+          }
+        });
+    }
+  }, [reportDate, activeRepo]);
 
   // Tangkap token github dari url callback
   useEffect(() => {
@@ -180,11 +226,19 @@ export default function Dashboard() {
       })
       .subscribe();
 
+    const reportsSubscription = supabase
+      .channel('reports-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(agentsSubscription);
       supabase.removeChannel(commitsSubscription);
       supabase.removeChannel(tasksSubscription);
       supabase.removeChannel(goalsSubscription);
+      supabase.removeChannel(reportsSubscription);
     };
   }, []);
 
@@ -225,15 +279,38 @@ export default function Dashboard() {
       
       if (error) throw error;
       setActiveRepo(data);
-      // Fetch ulang data goals dll dari repo baru
-      const { data: goalsData } = await supabase
-        .from('goals')
-        .select('*')
-        .eq('repo_id', data.id)
-        .order('created_at', { ascending: false });
-      if (goalsData) setGoals(goalsData);
+      fetchData();
     } catch (err: any) {
       alert(`Gagal menyimpan repo: ${err.message}`);
+    }
+  };
+
+  // Fungsi Trigger AI Generate Laporan Harian
+  const handleGenerateReport = async () => {
+    if (!activeRepo) {
+      alert('Pilih repositori aktif terlebih dahulu!');
+      return;
+    }
+    setIsGeneratingReport(true);
+    setReportWarning('');
+    try {
+      const res = await fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoId: activeRepo.id, date: reportDate })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal generate laporan');
+      }
+      if (data.warning) {
+        setReportWarning(data.warning);
+      }
+      fetchData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
@@ -313,26 +390,19 @@ export default function Dashboard() {
     setGitRepos([]);
   };
 
-  // Filter commit hari ini
-  const todayCommits = commits.filter(c => {
-    const today = new Date().toISOString().split('T')[0];
-    const commitDate = new Date(c.commit_time).toISOString().split('T')[0];
-    return today === commitDate;
-  });
-
   return (
     <div className="min-h-screen text-blue-700 bg-slate-50 relative selection:bg-blue-500/20 uppercase tracking-wider font-sans text-xs">
       
       {/* Texture Overlay (Gaya Portfolio Hermes) */}
       <div 
         className="fixed inset-0 pointer-events-none z-50 opacity-[0.04] mix-blend-multiply" 
-        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)\'/%3E%3C/svg%3E")` }}
       />
 
-      {/* Container utama dengan lebar penuh yang memanjang */}
+      {/* Container utama */}
       <div className="max-w-[1600px] mx-auto px-6 py-8 relative z-10 space-y-12">
         
-        {/* Header Grid Border Khas Hermes - Dengan warna biru kobalt lebih pekat menyala */}
+        {/* Header Grid */}
         <header className="grid grid-cols-1 md:grid-cols-4 border-t-2 border-b-2 border-blue-700 text-blue-900 items-center">
           <div className="p-4 border-r border-blue-700 font-serif italic text-2xl font-black tracking-normal text-blue-800">
             ORCHESTRATOR
@@ -371,7 +441,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Section 1: Detail Pengambil List Repo */}
+        {/* Section: Pilih Repo */}
         {gitToken && (
           <section className="border border-blue-700/40 p-6 bg-blue-50">
             <h2 className="font-serif italic text-lg font-extrabold text-blue-900 mb-3 flex items-center gap-2">
@@ -491,14 +561,14 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Kolom Kanan: Detail, AI Insight & Goals */}
+          {/* Kolom Kanan: Detail, Daily Report, Goals & Simulator */}
           <div className="space-y-6">
             <h2 className="font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-blue-700" />
               AI INSIGHT & GOALS
             </h2>
 
-            {/* Fitur Goals Baru per Repo */}
+            {/* Fitur Goals */}
             <div className="border border-blue-700/40 p-5 bg-white space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
@@ -528,7 +598,7 @@ export default function Dashboard() {
                       <input 
                         type="checkbox" 
                         checked={goal.status === 'Achieved'} 
-                        onChange={() => {}} // Controlled by outer div click
+                        onChange={() => {}}
                         className="mt-0.5 accent-emerald-600"
                       />
                       <div className="text-[10px]">
@@ -540,7 +610,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Form Tambah Goal Baru */}
+              {/* Form Tambah Goal */}
               <form onSubmit={handleAddGoal} className="pt-3 border-t border-blue-700/10 space-y-2">
                 <input 
                   type="text" 
@@ -568,24 +638,49 @@ export default function Dashboard() {
               </form>
             </div>
 
-            {/* AI Summary */}
+            {/* Daily Report Interaktif buatan Antigravity / Gemini */}
             <div className="border border-blue-700/40 p-5 bg-white space-y-3">
-              <span className="font-bold text-blue-900 block text-xs">AI HEALTH DAILY SUMMARY</span>
-              <ul className="space-y-2 text-blue-800/70 font-mono text-[10px] pl-3 list-disc marker:text-blue-700">
-                {todayCommits.length === 0 ? (
-                  <p className="text-blue-800/40 text-[9px] list-none pl-0">BELUM ADA DATA AKTIVITAS UNTUK HARI INI.</p>
-                ) : (
-                  <>
-                    <li>UI AGENT: MENDESAIN HALAMAN LOGIN RESPONSIVE DAN FUNGSIONAL.</li>
-                    <li>BACKEND AGENT: MENERAPKAN JWT AUTHENTIKASI DAN VERIFIKASI TOKEN.</li>
-                    <li>TESTING AGENT: MENJALANKAN UNIT TEST DENGAN COVERAGE MENCAPAI 85%.</li>
-                  </>
-                )}
-              </ul>
-              <div className="pt-3 border-t border-blue-700/10 flex justify-between items-center text-[10px]">
-                <span className="opacity-50 font-mono">SYSTEM HEALTH</span>
-                <span className="text-emerald-700 font-bold">🟢 HEALTHY</span>
+              <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
+                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-blue-700" />
+                  DAILY REPORT BY AI
+                </span>
+                <input 
+                  type="date" 
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  className="bg-slate-50 border border-blue-700/20 text-[9px] font-mono text-blue-950 p-1 focus:outline-none"
+                />
               </div>
+
+              {currentReport ? (
+                <div className="space-y-3">
+                  <div className="p-2 border border-blue-700/10 bg-slate-50 text-[10px] font-mono lowercase text-blue-900">
+                    <strong>summary:</strong> {currentReport.summary_short}
+                  </div>
+                  {/* Tampilkan detail markdown terstruktur */}
+                  <div className="text-[10px] font-mono text-blue-950 max-h-40 overflow-y-auto space-y-2 whitespace-pre-wrap border border-blue-700/10 p-3 bg-white">
+                    {currentReport.content}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-blue-800/40 text-[9px] font-mono mb-3">BELUM ADA LAPORAN HARIAN HARI INI.</p>
+                  <button
+                    onClick={handleGenerateReport}
+                    disabled={isGeneratingReport || !activeRepo}
+                    className="bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold px-3 py-1.5 border border-blue-800 transition-all text-[9px]"
+                  >
+                    {isGeneratingReport ? 'GENERATING REPORT...' : 'GENERATE AI REPORT'}
+                  </button>
+                </div>
+              )}
+
+              {reportWarning && (
+                <div className="p-2 border border-amber-600/30 bg-amber-50 text-[9px] font-mono text-amber-700">
+                  ⚠️ {reportWarning}
+                </div>
+              )}
             </div>
 
             {/* Agent Simulator */}
