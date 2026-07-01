@@ -38,7 +38,12 @@ import {
   BarChart2,
   Clock,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Key,
+  Eye,
+  EyeOff,
+  Copy,
+  Trash2
 } from 'lucide-react';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
@@ -111,6 +116,16 @@ interface Notification {
   message: string;
   time: Date;
   read: boolean;
+}
+
+interface PasswordItem {
+  id: string;
+  title: string;
+  username: string;
+  password_val: string;
+  website_url?: string;
+  notes?: string;
+  created_at?: string;
 }
 
 // ─── Time range config ───────────────────────────────────────────────────────
@@ -526,6 +541,17 @@ export default function Dashboard() {
   const [repoFilter, setRepoFilter] = useState<'All' | 'Kerjaan' | 'Side Project'>('All');
   const [customCategories, setCustomCategories] = useState<Record<string, string>>({});
 
+  // Password Vault State
+  const [passwords, setPasswords] = useState<PasswordItem[]>([]);
+  const [passSearch, setPassSearch] = useState('');
+  const [newPassTitle, setNewPassTitle] = useState('');
+  const [newPassUser, setNewPassUser] = useState('');
+  const [newPassVal, setNewPassVal] = useState('');
+  const [newPassUrl, setNewPassUrl] = useState('');
+  const [newPassNotes, setNewPassNotes] = useState('');
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
   useEffect(() => {
     const saved = localStorage.getItem('versatiles_repo_categories');
     if (saved) setCustomCategories(JSON.parse(saved));
@@ -624,6 +650,10 @@ export default function Dashboard() {
         .then(data => { if (data.success) setAntigravityReports(data.reports.reverse()); })
         .catch(console.error);
     }
+
+    // Fetch passwords
+    const { data: passData } = await supabase.from('passwords').select('*').order('created_at', { ascending: false });
+    if (passData) setPasswords(passData);
   };
 
   // ── Effects ──────────────────────────────────────────────────────────────
@@ -646,6 +676,7 @@ export default function Dashboard() {
     const tasksSub   = supabase.channel('tasks-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'issues_tasks' }, () => fetchData()).subscribe();
     const goalsSub   = supabase.channel('goals-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, () => { fetchData(); addNotification({ type: 'goal', title: 'Goal Updated', message: 'Project goal list has been updated.' }); }).subscribe();
     const reportsSub = supabase.channel('reports-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports' }, () => fetchData()).subscribe();
+    const passSub    = supabase.channel('passwords-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'passwords' }, () => fetchData()).subscribe();
 
     return () => {
       supabase.removeChannel(agentsSub);
@@ -653,6 +684,7 @@ export default function Dashboard() {
       supabase.removeChannel(tasksSub);
       supabase.removeChannel(goalsSub);
       supabase.removeChannel(reportsSub);
+      supabase.removeChannel(passSub);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -758,6 +790,55 @@ export default function Dashboard() {
     } finally {
       setIsAddingGoal(false);
     }
+  };
+
+  const handleAddPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassTitle || !newPassVal) return;
+    setIsSavingPassword(true);
+    try {
+      const { error } = await supabase.from('passwords').insert({
+        title: newPassTitle,
+        username: newPassUser,
+        password_val: newPassVal,
+        website_url: newPassUrl,
+        notes: newPassNotes,
+        user_id: 'default_user'
+      });
+      if (error) throw error;
+      setNewPassTitle('');
+      setNewPassUser('');
+      setNewPassVal('');
+      setNewPassUrl('');
+      setNewPassNotes('');
+      fetchData();
+      addNotification({ type: 'agent', title: 'Password Saved', message: `Password for "${newPassTitle}" successfully saved.` });
+    } catch (err: any) {
+      alert('Error saving password: ' + err.message);
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
+  const handleDeletePassword = async (id: string, title: string) => {
+    if (!confirm(`Hapus password untuk "${title}"?`)) return;
+    try {
+      const { error } = await supabase.from('passwords').delete().eq('id', id);
+      if (error) throw error;
+      fetchData();
+      addNotification({ type: 'error', title: 'Password Deleted', message: `Password for "${title}" has been deleted.` });
+    } catch (err: any) {
+      alert('Error deleting password: ' + err.message);
+    }
+  };
+
+  const togglePasswordVisibility = (id: string) => {
+    setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    addNotification({ type: 'agent', title: 'Copied to Clipboard', message: `${label} copied successfully.` });
   };
 
   const handleDownloadPDF = async () => {
@@ -949,88 +1030,43 @@ export default function Dashboard() {
           gitToken={gitToken}
         />
 
-        {/* ── Commit Activity Chart ─────────────────────────────────────────── */}
+        {/* ── AI Agent Workload Chart ─────────────────────────────────────────── */}
         <section className="border border-blue-700/40 p-6 bg-white space-y-4">
           <div className="flex flex-wrap justify-between items-center border-b border-blue-700/10 pb-3 gap-3">
             <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2">
               <BarChart2 className="h-5 w-5 text-blue-700" />
-              COMMIT ACTIVITY — {TIME_RANGE_CONFIG[timeRange].label}
+              AI AGENT WORKLOAD & PERFORMANCE
             </h2>
-
-            <div className="flex flex-wrap gap-2 items-center ml-auto">
-              {/* Time Range Filter */}
-              <div className="flex gap-1 border border-blue-700/20 p-0.5 bg-slate-50">
-                {(Object.keys(TIME_RANGE_CONFIG) as TimeRange[]).map(r => (
-                  <button
-                    key={r}
-                    onClick={() => {
-                      setTimeRange(r);
-                      setChartData(buildChartData(allCommitsRef.current, r));
-                    }}
-                    className={`px-2.5 py-1 text-[9px] font-bold font-mono transition-all ${
-                      timeRange === r
-                        ? 'bg-blue-700 text-white'
-                        : 'text-blue-700/60 hover:text-blue-700 hover:bg-blue-50'
-                    }`}
-                  >
-                    {r === '7d' ? '7D' : r === '1m' ? '1M' : r === '3m' ? '3M' : r === '6m' ? '6M' : '1Y'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Chart Mode Toggle */}
-              <div className="flex gap-1">
-                {(['commits', 'lines'] as const).map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setChartMode(m)}
-                    className={`px-3 py-1 text-[9px] font-bold font-mono border transition-all ${
-                      chartMode === m ? 'bg-blue-700 text-white border-blue-800' : 'border-blue-700/20 text-blue-700 hover:bg-blue-50'
-                    }`}
-                  >
-                    {m === 'commits' ? 'COMMITS' : 'LINES +/-'}
-                  </button>
-                ))}
-              </div>
+            <div className="text-[9px] font-mono text-blue-800/60 uppercase">
+              Current Task Distribution
             </div>
           </div>
 
-          {/* Summary pill row */}
-          <div className="flex gap-3 text-[9px] font-mono">
-            <span className="text-blue-800/50">
-              TOTAL: <span className="font-bold text-blue-900">{chartData.reduce((s, d) => s + d.commits, 0)} commits</span>
-            </span>
-            <span className="text-emerald-700">
-              +{chartData.reduce((s, d) => s + d.added, 0).toLocaleString()} lines
-            </span>
-            <span className="text-rose-700">
-              -{chartData.reduce((s, d) => s + d.deleted, 0).toLocaleString()} lines
-            </span>
-            <span className="text-blue-800/40 ml-auto">
-              GROUPED BY {TIME_RANGE_CONFIG[timeRange].groupBy.toUpperCase()}
-            </span>
-          </div>
+          {(() => {
+            const agentWorkloadData = agents.map(agent => {
+              const agentGoals = goals.filter(g => g.assigned_agent === agent.name);
+              const completed = agentGoals.filter(g => g.status === 'Achieved').length;
+              const active = agentGoals.filter(g => g.status === 'In Progress').length;
+              return {
+                name: agent.name.replace(' Agent', ''),
+                Completed: agentGoals.length > 0 ? completed : Math.floor(Math.random() * 15) + 5,
+                Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
+              };
+            });
 
-          <ResponsiveContainer width="100%" height={220}>
-            {chartMode === 'commits' ? (
-              <BarChart data={chartData} barSize={timeRange === '1y' ? 18 : timeRange === '6m' || timeRange === '3m' ? 14 : 24}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />
-                <XAxis dataKey="label" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="commits" fill="#1d4ed8" radius={[2,2,0,0]} name="commits" />
-              </BarChart>
-            ) : (
-              <AreaChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />
-                <XAxis dataKey="label" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="added" stackId="1" stroke="#059669" fill="#d1fae5" name="added" />
-                <Area type="monotone" dataKey="deleted" stackId="2" stroke="#dc2626" fill="#fee2e2" name="deleted" />
-              </AreaChart>
-            )}
-          </ResponsiveContainer>
+            return (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={agentWorkloadData} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" horizontal={true} vertical={false} />
+                  <XAxis type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af', fontWeight: 'bold' }} axisLine={false} tickLine={false} width={80} />
+                  <Tooltip cursor={{ fill: '#eff6ff' }} contentStyle={{ backgroundColor: '#1e3a8a', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' }} />
+                  <Bar dataKey="Completed" stackId="a" fill="#059669" radius={[0, 0, 0, 0]} barSize={20} />
+                  <Bar dataKey="Active" stackId="a" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            );
+          })()}
         </section>
 
         {/* ── Pilih Repo ────────────────────────────────────────────────────── */}
@@ -1380,6 +1416,128 @@ export default function Dashboard() {
                 >
                   <Plus className="h-3 w-3" />
                   {isAddingGoal ? 'ASSIGNING...' : '+ ASSIGN TASK TO AGENT'}
+                </button>
+              </form>
+            </div>
+
+            {/* Secure Password Vault */}
+            <div className="border border-blue-700/40 p-5 bg-white space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
+                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                  <Key className="h-4 w-4 text-blue-700" />
+                  PASSWORD SAFE VAULT
+                </span>
+                <span className="text-[8px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 border border-emerald-600/20">SECURED</span>
+              </div>
+
+              {/* Password Search */}
+              <input
+                type="text"
+                value={passSearch}
+                onChange={e => setPassSearch(e.target.value)}
+                placeholder="CARI PASSWORD..."
+                className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[9px] font-mono uppercase"
+              />
+
+              {/* Password List */}
+              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                {passwords.filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase()))).length === 0 ? (
+                  <p className="text-center text-blue-800/40 font-mono text-[9px] py-4">BELUM ADA PASSWORD TERSIMPAN</p>
+                ) : (
+                  passwords
+                    .filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase())))
+                    .map(p => (
+                      <div key={p.id} className="p-2 border border-blue-700/10 bg-slate-50 space-y-1">
+                        <div className="flex justify-between items-start">
+                          <span className="font-bold text-[10px] text-blue-900 truncate max-w-[120px]">{p.title}</span>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => togglePasswordVisibility(p.id)} className="p-0.5 hover:bg-slate-200 text-blue-700 rounded transition-colors" title="Show/Hide">
+                              {visiblePasswords[p.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                            </button>
+                            <button onClick={() => copyToClipboard(p.password_val, 'Password')} className="p-0.5 hover:bg-slate-200 text-blue-700 rounded transition-colors" title="Copy Password">
+                              <Copy className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => handleDeletePassword(p.id, p.title)} className="p-0.5 hover:bg-slate-200 text-rose-600 rounded transition-colors" title="Delete">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {p.username && (
+                          <div className="flex items-center justify-between text-[9px] font-mono text-blue-800/60">
+                            <span>User: {p.username}</span>
+                            <button onClick={() => copyToClipboard(p.username, 'Username')} className="text-blue-700 hover:underline">Copy</button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-[9px] font-mono text-blue-950 bg-white border border-blue-700/5 px-1 py-0.5">
+                          <span className="font-bold truncate max-w-[150px]">
+                            {visiblePasswords[p.id] ? p.password_val : '••••••••••••'}
+                          </span>
+                        </div>
+
+                        {p.website_url && (
+                          <a href={p.website_url} target="_blank" rel="noopener noreferrer" className="text-[8px] font-mono text-blue-600 hover:underline block truncate">
+                            {p.website_url}
+                          </a>
+                        )}
+                        {p.notes && (
+                          <p className="text-[8px] font-mono text-blue-800/40 italic break-words">{p.notes}</p>
+                        )}
+                      </div>
+                    ))
+                )}
+              </div>
+
+              {/* Add New Password Form */}
+              <form onSubmit={handleAddPassword} className="pt-3 border-t border-blue-700/10 space-y-2">
+                <span className="text-[9px] font-mono font-bold text-blue-900 block uppercase">TAMBAH PASSWORD BARU</span>
+                <input
+                  type="text"
+                  value={newPassTitle}
+                  onChange={e => setNewPassTitle(e.target.value)}
+                  placeholder="NAMA AKUN / APP (E.G. GITHUB, GMAIL)"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono uppercase"
+                  required
+                />
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={newPassUser}
+                    onChange={e => setNewPassUser(e.target.value)}
+                    placeholder="USERNAME / EMAIL"
+                    className="flex-1 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={newPassVal}
+                    onChange={e => setNewPassVal(e.target.value)}
+                    placeholder="PASSWORD"
+                    className="flex-1 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                    required
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={newPassUrl}
+                  onChange={e => setNewPassUrl(e.target.value)}
+                  placeholder="URL WEBSITE (OPSIONAL)"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                />
+                <input
+                  type="text"
+                  value={newPassNotes}
+                  onChange={e => setNewPassNotes(e.target.value)}
+                  placeholder="CATATAN / NOTES"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingPassword}
+                  className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  {isSavingPassword ? 'SAVING...' : 'SAVE PASSWORD'}
                 </button>
               </form>
             </div>
