@@ -700,6 +700,42 @@ export default function Dashboard() {
     }
   };
 
+  const handleAddManualRepo = async (ownerRepoSlug: string) => {
+    if (!ownerRepoSlug.includes('/')) {
+      alert('Format harus owner/repo (contoh: shimatachi/Sistem-Gudang-Cimanggis2)');
+      return;
+    }
+    const [owner, repo] = ownerRepoSlug.split('/');
+    setIsLoadingRepos(true);
+    try {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+        headers: {
+          'Authorization': `Bearer ${gitToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (!res.ok) throw new Error('Repo tidak ditemukan. Pastikan nama benar dan repo bersifat public, atau kamu punya aksesnya.');
+      const data = await res.json();
+      
+      const newRepo = {
+        id: data.id,
+        name: data.name,
+        full_name: data.full_name,
+        owner: data.owner.login,
+        description: data.description,
+        html_url: data.html_url
+      };
+      
+      setGitRepos(prev => [newRepo, ...prev]);
+      setRepoSearch('');
+      alert('Repo berhasil ditambahkan ke daftar!');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsLoadingRepos(false);
+    }
+  };
+
   const handleAddGoal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeRepo) { alert('Pilih repositori aktif terlebih dahulu!'); return; }
@@ -1062,8 +1098,24 @@ export default function Dashboard() {
                     </button>
                   ))}
                   {filteredRepos.length === 0 && (
-                    <div className="col-span-full py-8 text-center text-blue-800/40 font-mono text-[10px]">
-                      TIDAK ADA REPOSITORI YANG DITEMUKAN
+                    <div className="col-span-full py-8 flex flex-col items-center justify-center text-blue-800/40 font-mono text-[10px]">
+                      <p className="mb-4">TIDAK ADA REPOSITORI YANG DITEMUKAN</p>
+                      
+                      {/* Form Tambah Manual */}
+                      {repoSearch && repoSearch.includes('/') && (
+                        <div className="flex flex-col items-center mt-2 border border-blue-700/20 p-4 bg-white/50 w-full max-w-sm">
+                          <p className="mb-3 text-[9px] text-blue-800/60 font-bold text-center">
+                            Repo tidak muncul? Coba tambahkan secara manual:
+                          </p>
+                          <button
+                            onClick={() => handleAddManualRepo(repoSearch)}
+                            className="bg-blue-700 hover:bg-blue-800 text-white font-bold py-2 px-4 flex items-center gap-2 transition-all"
+                          >
+                            <Plus className="h-4 w-4" />
+                            TAMBAHKAN "{repoSearch}"
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
