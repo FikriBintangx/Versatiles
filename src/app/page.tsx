@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Play, 
@@ -100,11 +100,8 @@ export default function Dashboard() {
   const [assignedAgent, setAssignedAgent] = useState('UI Agent');
   const [isAddingGoal, setIsAddingGoal] = useState(false);
 
-  // State untuk Daily AI Report
-  const [currentReport, setCurrentReport] = useState<DailyReport | null>(null);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
-  const [reportWarning, setReportWarning] = useState('');
+  // State untuk Antigravity Auto-Reports
+  const [antigravityReports, setAntigravityReports] = useState<any[]>([]);
 
   // State untuk GitHub Repositories
   const [gitToken, setGitToken] = useState<string | null>(null);
@@ -123,14 +120,23 @@ export default function Dashboard() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [simStatus, setSimStatus] = useState('');
 
+  // Ref untuk menghindari stale closure pada fetchData
+  const activeRepoRef = useRef<any>(null);
+  useEffect(() => {
+    activeRepoRef.current = activeRepo;
+  }, [activeRepo]);
+
   // Fetch initial data
-  const fetchData = async () => {
+  const fetchData = async (overrideRepo?: any) => {
     // 1. Get Repo
-    const { data: repos } = await supabase.from('repositories').select('*').limit(1);
-    let currentRepo = null;
-    if (repos && repos.length > 0) {
-      currentRepo = repos[0];
-      setActiveRepo(currentRepo);
+    let currentRepo = overrideRepo || activeRepoRef.current;
+    
+    if (!currentRepo) {
+      const { data: repos } = await supabase.from('repositories').select('*').limit(1);
+      if (repos && repos.length > 0) {
+        currentRepo = repos[0];
+        setActiveRepo(currentRepo);
+      }
     }
 
     // 2. Get Agents
@@ -166,39 +172,17 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
       if (goalsData) setGoals(goalsData);
 
-      // Get Daily Report
-      const { data: reportData } = await supabase
-        .from('daily_reports')
-        .select('*')
-        .eq('repo_id', currentRepo.id)
-        .eq('report_date', reportDate)
-        .limit(1);
-      if (reportData && reportData.length > 0) {
-        setCurrentReport(reportData[0]);
-      } else {
-        setCurrentReport(null);
-      }
+      // Get Antigravity Live Reports
+      fetch('/api/antigravity-report')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setAntigravityReports(data.reports.reverse()); // terbaru di atas
+          }
+        })
+        .catch(console.error);
     }
   };
-
-  // Trigger fetch ulang saat ganti tanggal laporan
-  useEffect(() => {
-    if (activeRepo) {
-      supabase
-        .from('daily_reports')
-        .select('*')
-        .eq('repo_id', activeRepo.id)
-        .eq('report_date', reportDate)
-        .limit(1)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            setCurrentReport(data[0]);
-          } else {
-            setCurrentReport(null);
-          }
-        });
-    }
-  }, [reportDate, activeRepo]);
 
   // Tangkap token github dari url callback
   useEffect(() => {
@@ -339,41 +323,13 @@ export default function Dashboard() {
       }
       
       setActiveRepo(existingRepo);
-      fetchData();
+      fetchData(existingRepo);
     } catch (err: any) {
       console.warn("Supabase Error (menggunakan fallback lokal):", err.message);
       // Fallback: Set UI menggunakan data GitHub
-      setActiveRepo({ ...repo, id: repo.id.toString() });
-      fetchData();
-    }
-  };
-
-  // Fungsi Trigger AI Generate Laporan Harian
-  const handleGenerateReport = async () => {
-    if (!activeRepo) {
-      alert('Pilih repositori aktif terlebih dahulu!');
-      return;
-    }
-    setIsGeneratingReport(true);
-    setReportWarning('');
-    try {
-      const res = await fetch('/api/report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoId: activeRepo.id, date: reportDate })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Gagal generate laporan');
-      }
-      if (data.warning) {
-        setReportWarning(data.warning);
-      }
-      fetchData();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setIsGeneratingReport(false);
+      const fallbackRepo = { ...repo, id: repo.id.toString() };
+      setActiveRepo(fallbackRepo);
+      fetchData(fallbackRepo);
     }
   };
 
@@ -777,47 +733,39 @@ export default function Dashboard() {
               </form>
             </div>
 
-            {/* Daily Report Interaktif buatan Antigravity / Gemini */}
+            {/* Daily Report Interaktif buatan Antigravity */}
             <div className="border border-blue-700/40 p-5 bg-white space-y-3">
               <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-blue-700" />
-                  DAILY REPORT BY AI
+                  ANTIGRAVITY LIVE REPORTS
                 </span>
-                <input 
-                  type="date" 
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="bg-slate-50 border border-blue-700/20 text-[9px] font-mono text-blue-950 p-1 focus:outline-none"
-                />
+                <span className="text-[9px] font-mono text-blue-800/60 font-bold bg-slate-50 px-2 py-0.5 border border-blue-700/10">
+                  AUTO-SYNC
+                </span>
               </div>
 
-              {currentReport ? (
-                <div className="space-y-3">
-                  <div className="p-2 border border-blue-700/10 bg-slate-50 text-[10px] font-mono lowercase text-blue-900">
-                    <strong>summary:</strong> {currentReport.summary_short}
-                  </div>
-                  {/* Tampilkan detail markdown terstruktur */}
-                  <div className="text-[10px] font-mono text-blue-950 max-h-40 overflow-y-auto space-y-2 whitespace-pre-wrap border border-blue-700/10 p-3 bg-white">
-                    {currentReport.content}
-                  </div>
+              {antigravityReports.length > 0 ? (
+                <div className="space-y-4 max-h-[300px] overflow-y-auto">
+                  {antigravityReports.map((report, idx) => (
+                    <div key={idx} className="space-y-2 border-b border-blue-700/10 pb-3 last:border-0 last:pb-0">
+                      <div className="flex justify-between items-center">
+                         <span className="text-[9px] font-mono font-bold text-emerald-700">{new Date(report.timestamp || report.receivedAt).toLocaleString()}</span>
+                         <span className="text-[9px] font-mono bg-blue-50 text-blue-700 px-1 border border-blue-700/20">{report.status}</span>
+                      </div>
+                      <div className="p-2 border border-blue-700/10 bg-slate-50 text-[10px] font-mono text-blue-900">
+                        <strong>summary:</strong> {report.summary}
+                      </div>
+                      <div className="text-[10px] font-mono text-blue-950 space-y-1 whitespace-pre-wrap">
+                        {report.details}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-6">
-                  <p className="text-blue-800/40 text-[9px] font-mono mb-3">BELUM ADA LAPORAN HARIAN HARI INI.</p>
-                  <button
-                    onClick={handleGenerateReport}
-                    disabled={isGeneratingReport || !activeRepo}
-                    className="bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold px-3 py-1.5 border border-blue-800 transition-all text-[9px]"
-                  >
-                    {isGeneratingReport ? 'GENERATING REPORT...' : 'GENERATE AI REPORT'}
-                  </button>
-                </div>
-              )}
-
-              {reportWarning && (
-                <div className="p-2 border border-amber-600/30 bg-amber-50 text-[9px] font-mono text-amber-700">
-                  ⚠️ {reportWarning}
+                  <p className="text-blue-800/40 text-[9px] font-mono mb-3">BELUM ADA LAPORAN DARI ANTIGRAVITY.</p>
+                  <p className="text-blue-800/30 text-[8px] font-mono uppercase">Laporan akan masuk otomatis saat saya (Antigravity) selesai bekerja.</p>
                 </div>
               )}
             </div>

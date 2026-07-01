@@ -2,7 +2,7 @@
 
 Setiap kali kamu (Antigravity) selesai mengerjakan instruksi atau tugas yang cukup signifikan di project ini, kamu **WAJIB** mengirimkan laporan aktivitas ke endpoint API (Webhook) lokal atau production menggunakan PowerShell.
 
-**Endpoint Target:** `http://localhost:8003/api/antigravity-report`
+**Endpoint Target:** `http://localhost:3000/api/antigravity-report`
 **Metode:** POST
 **Content-Type:** `application/json`
 
@@ -27,7 +27,7 @@ $body = @{
     status = "completed"
 } | ConvertTo-Json
 
-Invoke-RestMethod -Uri "http://localhost:8003/api/antigravity-report" -Method Post -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:3000/api/antigravity-report" -Method Post -Body $body -ContentType "application/json"
 ```
 
 **Peraturan Tambahan:**
