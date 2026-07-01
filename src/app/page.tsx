@@ -227,6 +227,223 @@ function NotificationToast({ notif, onClose }: { notif: Notification; onClose: (
   );
 }
 
+// ─── Heatmap helpers ─────────────────────────────────────────────────────────
+function getHeatmapColor(count: number): string {
+  if (count === 0) return '#e2e8f0'; // slate-200 (empty)
+  if (count === 1) return '#bfdbfe'; // blue-200
+  if (count <= 3)  return '#60a5fa'; // blue-400
+  if (count <= 6)  return '#2563eb'; // blue-600
+  if (count <= 10) return '#1d4ed8'; // blue-700
+  return '#1e3a8a';                  // blue-900
+}
+
+function buildHeatmapData(commits: Commit[], year: number) {
+  // Count commits per day for this year
+  const countMap: Record<string, number> = {};
+  commits.forEach(c => {
+    const d = c.commit_time?.split('T')[0];
+    if (d && d.startsWith(String(year))) {
+      countMap[d] = (countMap[d] || 0) + 1;
+    }
+  });
+
+  const start = new Date(year, 0, 1);
+  const end   = new Date(year, 11, 31);
+  const weeks: { date: string | null; count: number; dow: number }[][] = [];
+  let currentWeek: { date: string | null; count: number; dow: number }[] = [];
+
+  // Leading empty days (Sun=0)
+  const startDow = start.getDay();
+  for (let d = 0; d < startDow; d++) currentWeek.push({ date: null, count: 0, dow: d });
+
+  const cur = new Date(start);
+  while (cur <= end) {
+    const key = cur.toISOString().split('T')[0];
+    const dow = cur.getDay();
+    currentWeek.push({ date: key, count: countMap[key] || 0, dow });
+    if (dow === 6) { weeks.push(currentWeek); currentWeek = []; }
+    cur.setDate(cur.getDate() + 1);
+  }
+  if (currentWeek.length > 0) {
+    while (currentWeek.length < 7) currentWeek.push({ date: null, count: 0, dow: currentWeek.length });
+    weeks.push(currentWeek);
+  }
+
+  const totalCommits = Object.values(countMap).reduce((s, v) => s + v, 0);
+  return { weeks, totalCommits };
+}
+
+// ─── Commit Heatmap Component ─────────────────────────────────────────────────
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAY_LABELS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// GitHub week day struct → our grid format
+function convertGitHubWeeks(ghWeeks: any[]): { date: string; count: number; dow: number }[][] {
+  return ghWeeks.map(w =>
+    w.contributionDays.map((d: any) => ({
+      date: d.date,
+      count: d.contributionCount,
+      dow: d.weekday,
+    }))
+  );
+}
+
+function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; year: number; onYearChange: (y: number) => void }) {
+  const { weeks, totalCommits } = buildHeatmapData(commits, year);
+  const [tooltip, setTooltip]   = React.useState<{ text: string; x: number; y: number } | null>(null);
+
+  // Compute month label positions (which column each month starts)
+  const monthPositions: { label: string; col: number }[] = [];
+  weeks.forEach((week, wi) => {
+    week.forEach(day => {
+      if (day.date && day.date.endsWith('-01')) {
+        const month = parseInt(day.date.split('-')[1], 10) - 1;
+        monthPositions.push({ label: MONTH_NAMES[month], col: wi });
+      }
+    });
+  });
+
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear - 3, currentYear - 2, currentYear - 1, currentYear];
+  const CELL  = 11;
+  const GAP   = 2;
+  const totalWidth  = weeks.length * (CELL + GAP);
+
+  return (
+    <div className="border border-blue-700/40 p-6 bg-white space-y-4">
+      {/* Header */}
+      <div className="flex flex-wrap justify-between items-center border-b border-blue-700/10 pb-3 gap-3">
+        <div>
+          <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2">
+            <Activity className="h-5 w-5 text-blue-700" />
+            CONTRIBUTION HEATMAP
+          </h2>
+          <p className="font-mono text-[9px] text-blue-800/50 mt-0.5">
+            <span className="font-bold text-blue-900">{totalCommits.toLocaleString()}</span> COMMITS IN {year}
+          </p>
+        </div>
+        {/* Year Selector */}
+        <div className="flex gap-1 border border-blue-700/20 p-0.5 bg-slate-50">
+          {years.map(y => (
+            <button
+              key={y}
+              onClick={() => onYearChange(y)}
+              className={`px-3 py-1.5 text-[9px] font-bold font-mono transition-all ${
+                y === year ? 'bg-blue-700 text-white' : 'text-blue-700/60 hover:text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="overflow-x-auto pb-1" style={{ position: 'relative' }}>
+        {/* Month labels */}
+        <div className="flex mb-1" style={{ paddingLeft: 32 }}>
+          {(() => {
+            const labels: React.ReactNode[] = [];
+            let lastCol = -1;
+            monthPositions.forEach(({ label, col }) => {
+              if (col - lastCol > 1) {
+                labels.push(
+                  <span
+                    key={label + col}
+                    className="font-mono text-[8px] text-blue-800/50 uppercase"
+                    style={{ width: (col - Math.max(lastCol, 0)) * (CELL + GAP), display: 'inline-block' }}
+                  >
+                    {label}
+                  </span>
+                );
+                lastCol = col;
+              }
+            });
+            // Fill remaining
+            labels.push(
+              <span key="end" className="flex-1" />
+            );
+            return labels;
+          })()}
+        </div>
+
+        <div className="flex gap-0.5">
+          {/* Day labels */}
+          <div className="flex flex-col justify-between mr-1" style={{ height: 7 * (CELL + GAP) - GAP }}>
+            {DAY_LABELS.map((d, i) => (
+              <span
+                key={d}
+                className="font-mono text-[7px] text-blue-800/40 uppercase leading-none"
+                style={{ height: CELL, display: 'flex', alignItems: 'center' }}
+              >
+                {i % 2 === 1 ? d : ''}
+              </span>
+            ))}
+          </div>
+
+          {/* Cells */}
+          <div
+            className="relative"
+            style={{ display: 'flex', gap: GAP, flexDirection: 'row' }}
+          >
+            {weeks.map((week, wi) => (
+              <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: GAP }}>
+                {week.map((day, di) => (
+                  <div
+                    key={di}
+                    onMouseEnter={e => {
+                      if (!day.date) return;
+                      const rect = (e.target as HTMLElement).getBoundingClientRect();
+                      setTooltip({
+                        text: `${day.count} commit${day.count !== 1 ? 's' : ''} — ${day.date}`,
+                        x: rect.left,
+                        y: rect.top,
+                      });
+                    }}
+                    onMouseLeave={() => setTooltip(null)}
+                    style={{
+                      width: CELL,
+                      height: CELL,
+                      borderRadius: 2,
+                      backgroundColor: day.date ? getHeatmapColor(day.count) : 'transparent',
+                      cursor: day.date ? 'pointer' : 'default',
+                      border: day.date ? '1px solid rgba(30,58,138,0.08)' : 'none',
+                      transition: 'transform 0.1s',
+                    }}
+                    className={day.date && day.count > 0 ? 'hover:scale-125' : ''}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Tooltip */}
+        {tooltip && (
+          <div
+            className="fixed z-50 bg-blue-900 text-white font-mono text-[9px] px-2 py-1 pointer-events-none shadow-lg"
+            style={{ top: tooltip.y - 28, left: tooltip.x }}
+          >
+            {tooltip.text}
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-2 justify-end pt-1 border-t border-blue-700/10">
+        <span className="font-mono text-[8px] text-blue-800/40">LESS</span>
+        {[0, 1, 3, 6, 10, 12].map(n => (
+          <div
+            key={n}
+            style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: getHeatmapColor(n), border: '1px solid rgba(30,58,138,0.10)' }}
+          />
+        ))}
+        <span className="font-mono text-[8px] text-blue-800/40">MORE</span>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -257,6 +474,20 @@ export default function Dashboard() {
   // State untuk Filter & Search Repositories
   const [repoSearch, setRepoSearch] = useState('');
   const [repoFilter, setRepoFilter] = useState<'All' | 'Kerjaan' | 'Side Project'>('All');
+  const [customCategories, setCustomCategories] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const saved = localStorage.getItem('versatiles_repo_categories');
+    if (saved) setCustomCategories(JSON.parse(saved));
+  }, []);
+
+  const toggleCategory = (e: React.MouseEvent, repoId: string, currentCategory: string) => {
+    e.stopPropagation();
+    const nextCategory = currentCategory === 'Kerjaan' ? 'Side Project' : 'Kerjaan';
+    const nextCategories = { ...customCategories, [repoId]: nextCategory };
+    setCustomCategories(nextCategories);
+    localStorage.setItem('versatiles_repo_categories', JSON.stringify(nextCategories));
+  };
 
   // Repo Explorer
   const [repoDetails, setRepoDetails]       = useState<RepoDetails | null>(null);
@@ -270,6 +501,7 @@ export default function Dashboard() {
   const [simStatus, setSimStatus]         = useState('');
 
   // Chart
+  const [heatmapYear, setHeatmapYear] = useState<number>(new Date().getFullYear());
   const [chartData, setChartData]   = useState<any[]>([]);
   const [chartMode, setChartMode]   = useState<'commits' | 'lines'>('commits');
   const [timeRange, setTimeRange]   = useState<TimeRange>('7d');
@@ -608,6 +840,13 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* ── Contribution Heatmap ─────────────────────────────────────────── */}
+        <CommitHeatmap
+          commits={allCommitsRef.current}
+          year={heatmapYear}
+          onYearChange={setHeatmapYear}
+        />
+
         {/* ── Commit Activity Chart ─────────────────────────────────────────── */}
         <section className="border border-blue-700/40 p-6 bg-white space-y-4">
           <div className="flex flex-wrap justify-between items-center border-b border-blue-700/10 pb-3 gap-3">
@@ -696,7 +935,8 @@ export default function Dashboard() {
         {gitToken && (() => {
           // Logika Filter dan Kategori
           const getRepoCategory = (repo: any) => {
-            if (['shimatachi', 'halo-wamo'].includes(repo.owner)) return 'Kerjaan';
+            if (customCategories[repo.id]) return customCategories[repo.id];
+            if (['shimatachi', 'halo-wamo'].includes(repo.owner?.toLowerCase())) return 'Kerjaan';
             return 'Side Project';
           };
 
@@ -760,7 +1000,11 @@ export default function Dashboard() {
                       <span className="font-bold truncate w-full">{repo.name}</span>
                       <div className="flex justify-between items-center w-full mt-1">
                         <span className="opacity-60 text-[9px] truncate">{repo.owner}</span>
-                        <span className={`text-[7px] px-1 py-0.5 font-bold ${getRepoCategory(repo) === 'Kerjaan' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'}`}>
+                        <span 
+                          onClick={(e) => toggleCategory(e, repo.id, getRepoCategory(repo))}
+                          className={`text-[7px] px-1 py-0.5 font-bold cursor-pointer hover:opacity-80 transition-opacity ${getRepoCategory(repo) === 'Kerjaan' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'}`}
+                          title="Klik untuk mengubah kategori"
+                        >
                           {getRepoCategory(repo).toUpperCase()}
                         </span>
                       </div>
