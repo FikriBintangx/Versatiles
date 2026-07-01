@@ -904,7 +904,18 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen text-blue-700 bg-slate-50 relative selection:bg-blue-500/20 uppercase tracking-wider font-sans text-xs">
       
-      {/* Noise Texture */}
+      {/* Background Image from Portfolio Hermes */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-[-1] opacity-[0.35]"
+        style={{ 
+          backgroundImage: "url('/bg.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'repeat'
+        }}
+      />
+
+      {/* Noise Texture Overlay */}
       <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.04] mix-blend-multiply"
         style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }}
       />
@@ -1023,51 +1034,77 @@ export default function Dashboard() {
         </div>
 
         {/* ── Contribution Heatmap ─────────────────────────────────────────── */}
-        <CommitHeatmap
-          commits={allCommitsRef.current}
-          year={heatmapYear}
-          onYearChange={setHeatmapYear}
-          gitToken={gitToken}
-        />
-
-        {/* ── AI Agent Workload Chart ─────────────────────────────────────────── */}
-        <section className="border border-blue-700/40 p-6 bg-white space-y-4">
-          <div className="flex flex-wrap justify-between items-center border-b border-blue-700/10 pb-3 gap-3">
-            <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2">
-              <BarChart2 className="h-5 w-5 text-blue-700" />
-              AI AGENT WORKLOAD & PERFORMANCE
-            </h2>
-            <div className="text-[9px] font-mono text-blue-800/60 uppercase">
-              Current Task Distribution
+        <div className="window-card min-h-[220px]" style={{ height: '340px' }}>
+          <div className="window-header">
+            <span className="font-mono text-[9px] font-bold text-blue-900 flex items-center gap-1.5">
+              <Activity className="h-3.5 w-3.5" /> CONTRIBUTION_HEATMAP.SYS
+            </span>
+            <div className="window-dots">
+              <span className="window-dot bg-amber-400" />
+              <span className="window-dot bg-emerald-500" />
+              <span className="window-dot bg-rose-500" />
             </div>
           </div>
+          <div className="window-content-inner" style={{ padding: 0 }}>
+            <CommitHeatmap
+              commits={allCommitsRef.current}
+              year={heatmapYear}
+              onYearChange={setHeatmapYear}
+              gitToken={gitToken}
+            />
+          </div>
+        </div>
 
-          {(() => {
-            const agentWorkloadData = agents.map(agent => {
-              const agentGoals = goals.filter(g => g.assigned_agent === agent.name);
-              const completed = agentGoals.filter(g => g.status === 'Achieved').length;
-              const active = agentGoals.filter(g => g.status === 'In Progress').length;
-              return {
-                name: agent.name.replace(' Agent', ''),
-                Completed: agentGoals.length > 0 ? completed : Math.floor(Math.random() * 15) + 5,
-                Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
-              };
-            });
+        {/* ── AI Agent Workload Chart ─────────────────────────────────────────── */}
+        <div className="window-card min-h-[200px]" style={{ height: '320px' }}>
+          <div className="window-header">
+            <span className="font-mono text-[9px] font-bold text-blue-900 flex items-center gap-1.5">
+              <BarChart2 className="h-3.5 w-3.5" /> AI_AGENT_WORKLOAD.DLL
+            </span>
+            <div className="window-dots">
+              <span className="window-dot bg-amber-400" />
+              <span className="window-dot bg-emerald-500" />
+              <span className="window-dot bg-rose-500" />
+            </div>
+          </div>
+          <div className="window-content-inner p-6 space-y-4">
+            <div className="flex flex-wrap justify-between items-center border-b border-blue-700/10 pb-3 gap-3">
+              <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2">
+                <BarChart2 className="h-5 w-5 text-blue-700" />
+                AI AGENT WORKLOAD & PERFORMANCE
+              </h2>
+              <div className="text-[9px] font-mono text-blue-800/60 uppercase">
+                Current Task Distribution
+              </div>
+            </div>
 
-            return (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={agentWorkloadData} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" horizontal={true} vertical={false} />
-                  <XAxis type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af', fontWeight: 'bold' }} axisLine={false} tickLine={false} width={80} />
-                  <Tooltip cursor={{ fill: '#eff6ff' }} contentStyle={{ backgroundColor: '#1e3a8a', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' }} />
-                  <Bar dataKey="Completed" stackId="a" fill="#059669" radius={[0, 0, 0, 0]} barSize={20} />
-                  <Bar dataKey="Active" stackId="a" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            );
-          })()}
-        </section>
+            {(() => {
+              const agentWorkloadData = agents.map(agent => {
+                const agentGoals = goals.filter(g => g.assigned_agent === agent.name);
+                const completed = agentGoals.filter(g => g.status === 'Achieved').length;
+                const active = agentGoals.filter(g => g.status === 'In Progress').length;
+                return {
+                  name: agent.name.replace(' Agent', ''),
+                  Completed: agentGoals.length > 0 ? completed : Math.floor(Math.random() * 15) + 5,
+                  Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
+                };
+              });
+
+              return (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={agentWorkloadData} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" horizontal={true} vertical={false} />
+                    <XAxis type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af', fontWeight: 'bold' }} axisLine={false} tickLine={false} width={80} />
+                    <Tooltip cursor={{ fill: '#eff6ff' }} contentStyle={{ backgroundColor: '#1e3a8a', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', fontFamily: 'monospace' }} />
+                    <Bar dataKey="Completed" stackId="a" fill="#059669" radius={[0, 0, 0, 0]} barSize={20} />
+                    <Bar dataKey="Active" stackId="a" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              );
+            })()}
+          </div>
+        </div>
 
         {/* ── Pilih Repo ────────────────────────────────────────────────────── */}
         {gitToken && (() => {
@@ -1635,6 +1672,62 @@ export default function Dashboard() {
         }
         .animate-slide-in { animation: slide-in 0.3s ease-out; }
         .animate-wiggle { animation: wiggle 0.5s ease-in-out infinite; }
+
+        /* Window-like controls & resize style */
+        .window-card {
+          display: flex;
+          flex-direction: column;
+          border: 1px solid rgba(29, 78, 216, 0.4);
+          background-color: #ffffff;
+          resize: vertical;
+          overflow: auto;
+          min-height: 180px;
+          height: auto;
+          transition: border-color 0.2s;
+        }
+        .window-card:hover {
+          border-color: rgba(29, 78, 216, 0.8);
+        }
+        .window-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 12px;
+          background: #f1f5f9;
+          border-bottom: 1px solid rgba(29, 78, 216, 0.15);
+          font-family: monospace;
+          user-select: none;
+        }
+        .window-dots {
+          display: flex;
+          gap: 6px;
+        }
+        .window-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+        .window-content-inner {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          padding: 16px;
+        }
+        /* Custom scrollbars inside windows */
+        .window-card::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .window-card::-webkit-scrollbar-track {
+          background: #f8fafc;
+        }
+        .window-card::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .window-card::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
       `}</style>
     </div>
   );
