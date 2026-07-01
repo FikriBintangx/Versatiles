@@ -113,31 +113,73 @@ interface Notification {
   read: boolean;
 }
 
-// ─── Helper: build commit chart data (last 7 days) ───────────────────────────
-function buildChartData(commits: Commit[]) {
-  const days: { date: string; label: string; commits: number; added: number; deleted: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().split('T')[0];
-    days.push({
-      date: key,
-      label: d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }),
-      commits: 0,
-      added: 0,
-      deleted: 0,
+// ─── Time range config ───────────────────────────────────────────────────────
+export type TimeRange = '7d' | '1m' | '3m' | '6m' | '1y';
+const TIME_RANGE_CONFIG: Record<TimeRange, { label: string; days: number; groupBy: 'day' | 'week' | 'month' }> = {
+  '7d':  { label: 'LAST 7 DAYS',    days: 7,   groupBy: 'day'   },
+  '1m':  { label: 'LAST 1 MONTH',   days: 30,  groupBy: 'day'   },
+  '3m':  { label: 'LAST 3 MONTHS',  days: 90,  groupBy: 'week'  },
+  '6m':  { label: 'LAST 6 MONTHS',  days: 180, groupBy: 'week'  },
+  '1y':  { label: 'LAST 1 YEAR',    days: 365, groupBy: 'month' },
+};
+
+// ─── Helper: build commit chart data with flexible range ─────────────────────
+function buildChartData(commits: Commit[], range: TimeRange = '7d') {
+  const { days: totalDays, groupBy } = TIME_RANGE_CONFIG[range];
+  const buckets: { date: string; label: string; commits: number; added: number; deleted: number }[] = [];
+
+  if (groupBy === 'day') {
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      const fmt = totalDays <= 7
+        ? d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' })
+        : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+      buckets.push({ date: key, label: fmt, commits: 0, added: 0, deleted: 0 });
+    }
+    commits.forEach(c => {
+      const day = c.commit_time?.split('T')[0];
+      const entry = buckets.find(b => b.date === day);
+      if (entry) { entry.commits++; entry.added += c.added_lines || 0; entry.deleted += c.deleted_lines || 0; }
+    });
+
+  } else if (groupBy === 'week') {
+    const numWeeks = Math.ceil(totalDays / 7);
+    for (let i = numWeeks - 1; i >= 0; i--) {
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - i * 7 - 6);
+      const weekEnd = new Date();
+      weekEnd.setDate(weekEnd.getDate() - i * 7);
+      const key = `week-${i}`;
+      const label = weekEnd.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+      buckets.push({ date: key, label, commits: 0, added: 0, deleted: 0 });
+      // store bounds for matching
+      (buckets[buckets.length - 1] as any)._start = weekStart.toISOString().split('T')[0];
+      (buckets[buckets.length - 1] as any)._end = weekEnd.toISOString().split('T')[0];
+    }
+    commits.forEach(c => {
+      const day = c.commit_time?.split('T')[0];
+      const entry = buckets.find(b => (b as any)._start <= day && day <= (b as any)._end);
+      if (entry) { entry.commits++; entry.added += c.added_lines || 0; entry.deleted += c.deleted_lines || 0; }
+    });
+
+  } else { // month
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+      buckets.push({ date: key, label, commits: 0, added: 0, deleted: 0 });
+    }
+    commits.forEach(c => {
+      const key = c.commit_time?.substring(0, 7);
+      const entry = buckets.find(b => b.date === key);
+      if (entry) { entry.commits++; entry.added += c.added_lines || 0; entry.deleted += c.deleted_lines || 0; }
     });
   }
-  commits.forEach((c) => {
-    const day = c.commit_time?.split('T')[0];
-    const entry = days.find((d) => d.date === day);
-    if (entry) {
-      entry.commits += 1;
-      entry.added += c.added_lines || 0;
-      entry.deleted += c.deleted_lines || 0;
-    }
-  });
-  return days;
+
+  return buckets;
 }
 
 // ─── Priority config ──────────────────────────────────────────────────────────
@@ -230,6 +272,8 @@ export default function Dashboard() {
   // Chart
   const [chartData, setChartData]   = useState<any[]>([]);
   const [chartMode, setChartMode]   = useState<'commits' | 'lines'>('commits');
+  const [timeRange, setTimeRange]   = useState<TimeRange>('7d');
+  const allCommitsRef               = useRef<Commit[]>([]);
 
   // Notifications
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -264,7 +308,7 @@ export default function Dashboard() {
     if (agentsData) setAgents(agentsData);
 
     const { data: commitsData } = await supabase
-      .from('commits').select('*').order('commit_time', { ascending: false }).limit(50);
+      .from('commits').select('*').order('commit_time', { ascending: false }).limit(500);
     if (commitsData) {
       // Detect new commits for notifications
       const newIds = commitsData.map(c => c.id);
@@ -277,8 +321,9 @@ export default function Dashboard() {
         }));
       }
       prevCommitsRef.current = newIds;
-      setCommits(commitsData);
-      setChartData(buildChartData(commitsData));
+      allCommitsRef.current = commitsData;
+      setCommits(commitsData.slice(0, 15));
+      setChartData(buildChartData(commitsData, timeRange));
     }
 
     if (currentRepo) {
@@ -565,30 +610,71 @@ export default function Dashboard() {
 
         {/* ── Commit Activity Chart ─────────────────────────────────────────── */}
         <section className="border border-blue-700/40 p-6 bg-white space-y-4">
-          <div className="flex justify-between items-center border-b border-blue-700/10 pb-3">
+          <div className="flex flex-wrap justify-between items-center border-b border-blue-700/10 pb-3 gap-3">
             <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2">
               <BarChart2 className="h-5 w-5 text-blue-700" />
-              COMMIT ACTIVITY — LAST 7 DAYS
+              COMMIT ACTIVITY — {TIME_RANGE_CONFIG[timeRange].label}
             </h2>
-            <div className="flex gap-1">
-              {(['commits', 'lines'] as const).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setChartMode(m)}
-                  className={`px-3 py-1 text-[9px] font-bold font-mono border transition-all ${
-                    chartMode === m ? 'bg-blue-700 text-white border-blue-800' : 'border-blue-700/20 text-blue-700 hover:bg-blue-50'
-                  }`}
-                >
-                  {m === 'commits' ? 'COMMITS' : 'LINES +/-'}
-                </button>
-              ))}
+
+            <div className="flex flex-wrap gap-2 items-center ml-auto">
+              {/* Time Range Filter */}
+              <div className="flex gap-1 border border-blue-700/20 p-0.5 bg-slate-50">
+                {(Object.keys(TIME_RANGE_CONFIG) as TimeRange[]).map(r => (
+                  <button
+                    key={r}
+                    onClick={() => {
+                      setTimeRange(r);
+                      setChartData(buildChartData(allCommitsRef.current, r));
+                    }}
+                    className={`px-2.5 py-1 text-[9px] font-bold font-mono transition-all ${
+                      timeRange === r
+                        ? 'bg-blue-700 text-white'
+                        : 'text-blue-700/60 hover:text-blue-700 hover:bg-blue-50'
+                    }`}
+                  >
+                    {r === '7d' ? '7D' : r === '1m' ? '1M' : r === '3m' ? '3M' : r === '6m' ? '6M' : '1Y'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Chart Mode Toggle */}
+              <div className="flex gap-1">
+                {(['commits', 'lines'] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setChartMode(m)}
+                    className={`px-3 py-1 text-[9px] font-bold font-mono border transition-all ${
+                      chartMode === m ? 'bg-blue-700 text-white border-blue-800' : 'border-blue-700/20 text-blue-700 hover:bg-blue-50'
+                    }`}
+                  >
+                    {m === 'commits' ? 'COMMITS' : 'LINES +/-'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
+
+          {/* Summary pill row */}
+          <div className="flex gap-3 text-[9px] font-mono">
+            <span className="text-blue-800/50">
+              TOTAL: <span className="font-bold text-blue-900">{chartData.reduce((s, d) => s + d.commits, 0)} commits</span>
+            </span>
+            <span className="text-emerald-700">
+              +{chartData.reduce((s, d) => s + d.added, 0).toLocaleString()} lines
+            </span>
+            <span className="text-rose-700">
+              -{chartData.reduce((s, d) => s + d.deleted, 0).toLocaleString()} lines
+            </span>
+            <span className="text-blue-800/40 ml-auto">
+              GROUPED BY {TIME_RANGE_CONFIG[timeRange].groupBy.toUpperCase()}
+            </span>
+          </div>
+
+          <ResponsiveContainer width="100%" height={220}>
             {chartMode === 'commits' ? (
-              <BarChart data={chartData} barSize={24}>
+              <BarChart data={chartData} barSize={timeRange === '1y' ? 18 : timeRange === '6m' || timeRange === '3m' ? 14 : 24}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />
-                <XAxis dataKey="label" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="commits" fill="#1d4ed8" radius={[2,2,0,0]} name="commits" />
@@ -596,7 +682,7 @@ export default function Dashboard() {
             ) : (
               <AreaChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />
-                <XAxis dataKey="label" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#1e40af' }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="added" stackId="1" stroke="#059669" fill="#d1fae5" name="added" />

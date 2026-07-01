@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// Sementara kita simpan di memory (bisa diganti ke Database seperti Supabase / Vercel Postgres nanti)
-const reports: any[] = [];
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
@@ -12,17 +10,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Summary is required' }, { status: 400 });
     }
 
-    // Tambahkan log atau simpan ke database
     console.log('🤖 [ANTIGRAVITY REPORT RECEIVED]:', data);
-    reports.push({
-      ...data,
-      receivedAt: new Date().toISOString(),
-    });
+
+    // Simpan ke database Supabase
+    const { data: insertedData, error } = await supabase
+      .from('antigravity_reports')
+      .insert([
+        {
+          timestamp: data.timestamp || new Date().toISOString(),
+          summary: data.summary,
+          details: data.details || '',
+          status: data.status || 'completed'
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error('Supabase Insert Error:', error);
+      return NextResponse.json({ error: 'Failed to save report to database' }, { status: 500 });
+    }
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Report saved successfully!',
-      data 
+      message: 'Report saved to Supabase successfully!',
+      data: insertedData 
     }, { status: 201 });
 
   } catch (error) {
@@ -32,6 +43,19 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  // Endpoint ini dipakai dashboard untuk nge-fetch data report
-  return NextResponse.json({ success: true, reports });
+  try {
+    // Ambil data terbaru dari Supabase
+    const { data: reports, error } = await supabase
+      .from('antigravity_reports')
+      .select('*')
+      .order('timestamp', { ascending: false });
+
+    if (error) {
+      return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, reports: reports || [] });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 });
+  }
 }
