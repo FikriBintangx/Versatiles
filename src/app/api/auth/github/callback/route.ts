@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
+  const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
 
   if (!code) {
-    return NextResponse.redirect('/?error=no_code');
+    return NextResponse.redirect(`${origin}/?error=no_code`);
   }
 
   const clientId = process.env.GITHUB_CLIENT_ID;
@@ -29,15 +29,15 @@ export async function GET(request: Request) {
     const data = await res.json();
 
     if (data.error) {
-      return NextResponse.redirect(`/?error=${data.error_description || 'oauth_error'}`);
+      return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(data.error_description || 'oauth_error')}`);
     }
 
     const accessToken = data.access_token;
 
-    // Mengembalikan user ke dashboard dengan menyimpan access token sementara pada query / session
-    const response = NextResponse.redirect(`/?github_connected=true&access_token=${accessToken}`);
+    // Mengembalikan user ke dashboard dengan absolute URL untuk mematuhi standar Next.js Redirect
+    const response = NextResponse.redirect(`${origin}/?github_connected=true&access_token=${accessToken}`);
     return response;
   } catch (error: any) {
-    return NextResponse.redirect(`/?error=${encodeURIComponent(error.message)}`);
+    return NextResponse.redirect(`${origin}/?error=${encodeURIComponent(error.message)}`);
   }
 }
