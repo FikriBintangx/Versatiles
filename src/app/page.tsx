@@ -16,7 +16,9 @@ import {
   Heart,
   AlertCircle,
   Compass,
-  ArrowRight
+  ArrowRight,
+  Plus,
+  Target
 } from 'lucide-react';
 
 interface Agent {
@@ -56,12 +58,26 @@ interface GitHubRepo {
   html_url: string;
 }
 
+interface Goal {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  created_at: string;
+}
+
 export default function Dashboard() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [commits, setCommits] = useState<Commit[]>([]);
   const [tasks, setTasks] = useState<IssueTask[]>([]);
   const [activeRepo, setActiveRepo] = useState<any>(null);
   
+  // State untuk Goals
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [newGoalTitle, setNewGoalTitle] = useState('');
+  const [newGoalDesc, setNewGoalDesc] = useState('');
+  const [isAddingGoal, setIsAddingGoal] = useState(false);
+
   // State untuk GitHub Repositories
   const [gitToken, setGitToken] = useState<string | null>(null);
   const [gitRepos, setGitRepos] = useState<GitHubRepo[]>([]);
@@ -79,8 +95,10 @@ export default function Dashboard() {
   const fetchData = async () => {
     // 1. Get Repo
     const { data: repos } = await supabase.from('repositories').select('*').limit(1);
+    let currentRepo = null;
     if (repos && repos.length > 0) {
-      setActiveRepo(repos[0]);
+      currentRepo = repos[0];
+      setActiveRepo(currentRepo);
     }
 
     // 2. Get Agents
@@ -99,12 +117,23 @@ export default function Dashboard() {
     if (commitsData) setCommits(commitsData);
 
     // 4. Get active tasks
-    const { data: tasksData } = await supabase
-      .from('issues_tasks')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (tasksData) setTasks(tasksData);
+    if (currentRepo) {
+      const { data: tasksData } = await supabase
+        .from('issues_tasks')
+        .select('*')
+        .eq('repo_id', currentRepo.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (tasksData) setTasks(tasksData);
+
+      // 5. Get Goals
+      const { data: goalsData } = await supabase
+        .from('goals')
+        .select('*')
+        .eq('repo_id', currentRepo.id)
+        .order('created_at', { ascending: false });
+      if (goalsData) setGoals(goalsData);
+    }
   };
 
   // Tangkap token github dari url callback
@@ -114,7 +143,6 @@ export default function Dashboard() {
     if (token) {
       setGitToken(token);
       localStorage.setItem('gh_access_token', token);
-      // Bersihkan url query parameter agar bersih
       window.history.replaceState({}, document.title, window.location.pathname);
     } else {
       const savedToken = localStorage.getItem('gh_access_token');
@@ -145,10 +173,18 @@ export default function Dashboard() {
       })
       .subscribe();
 
+    const goalsSubscription = supabase
+      .channel('goals-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(agentsSubscription);
       supabase.removeChannel(commitsSubscription);
       supabase.removeChannel(tasksSubscription);
+      supabase.removeChannel(goalsSubscription);
     };
   }, []);
 
@@ -189,9 +225,56 @@ export default function Dashboard() {
       
       if (error) throw error;
       setActiveRepo(data);
-      alert(`Berhasil mengkoneksikan repositori: ${repo.full_name}`);
+      // Fetch ulang data goals dll dari repo baru
+      const { data: goalsData } = await supabase
+        .from('goals')
+        .select('*')
+        .eq('repo_id', data.id)
+        .order('created_at', { ascending: false });
+      if (goalsData) setGoals(goalsData);
     } catch (err: any) {
       alert(`Gagal menyimpan repo: ${err.message}`);
+    }
+  };
+
+  // Fungsi Tambah Goal Baru
+  const handleAddGoal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeRepo) {
+      alert('Koneksikan/pilih repositori aktif terlebih dahulu!');
+      return;
+    }
+    setIsAddingGoal(true);
+    try {
+      const { error } = await supabase
+        .from('goals')
+        .insert({
+          repo_id: activeRepo.id,
+          title: newGoalTitle,
+          description: newGoalDesc,
+          status: 'In Progress'
+        });
+      
+      if (error) throw error;
+      setNewGoalTitle('');
+      setNewGoalDesc('');
+    } catch (err: any) {
+      alert(`Gagal membuat Goal: ${err.message}`);
+    } finally {
+      setIsAddingGoal(false);
+    }
+  };
+
+  // Fungsi Ubah Status Goal (Toggle)
+  const toggleGoalStatus = async (goalId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'Achieved' ? 'In Progress' : 'Achieved';
+    try {
+      await supabase
+        .from('goals')
+        .update({ status: nextStatus })
+        .eq('id', goalId);
+    } catch (err: any) {
+      alert(`Gagal update goal: ${err.message}`);
     }
   };
 
@@ -230,7 +313,7 @@ export default function Dashboard() {
     setGitRepos([]);
   };
 
-  // Hitung statistik
+  // Filter commit hari ini
   const todayCommits = commits.filter(c => {
     const today = new Date().toISOString().split('T')[0];
     const commitDate = new Date(c.commit_time).toISOString().split('T')[0];
@@ -238,7 +321,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="min-h-screen text-sky-900 bg-slate-50 relative selection:bg-sky-500/20 uppercase tracking-wider font-sans text-xs">
+    <div className="min-h-screen text-blue-700 bg-slate-50 relative selection:bg-blue-500/20 uppercase tracking-wider font-sans text-xs">
       
       {/* Texture Overlay (Gaya Portfolio Hermes) */}
       <div 
@@ -249,22 +332,22 @@ export default function Dashboard() {
       {/* Container utama dengan lebar penuh yang memanjang */}
       <div className="max-w-[1600px] mx-auto px-6 py-8 relative z-10 space-y-12">
         
-        {/* Header Grid Border Khas Hermes */}
-        <header className="grid grid-cols-1 md:grid-cols-4 border-t border-b border-sky-900/60 text-sky-950 items-center">
-          <div className="p-4 border-r border-sky-900/60 font-serif italic text-2xl font-black tracking-normal text-sky-950">
+        {/* Header Grid Border Khas Hermes - Dengan warna biru kobalt lebih pekat menyala */}
+        <header className="grid grid-cols-1 md:grid-cols-4 border-t-2 border-b-2 border-blue-700 text-blue-900 items-center">
+          <div className="p-4 border-r border-blue-700 font-serif italic text-2xl font-black tracking-normal text-blue-800">
             ORCHESTRATOR
           </div>
-          <div className="p-4 border-r border-sky-900/60 font-mono text-[10px] tracking-widest text-sky-900/70">
+          <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80">
             [ STATUS: <span className="text-emerald-600 font-bold">ACTIVE</span> ]
           </div>
-          <div className="p-4 border-r border-sky-900/60 font-mono text-[10px] tracking-widest text-sky-900/70">
+          <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80">
             REPO: {activeRepo ? activeRepo.name : 'NONE CONNECTED'}
           </div>
           <div className="p-4 flex justify-between items-center">
             {!gitToken ? (
               <a 
                 href="/api/auth/github"
-                className="flex items-center gap-2 bg-sky-900 hover:bg-sky-800 text-slate-100 font-mono font-bold px-3 py-1.5 border border-sky-950 transition-all text-[10px]"
+                className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 text-slate-100 font-mono font-bold px-3 py-1.5 border border-blue-800 transition-all text-[10px]"
               >
                 <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
@@ -274,14 +357,14 @@ export default function Dashboard() {
             ) : (
               <button 
                 onClick={handleLogoutGitHub}
-                className="flex items-center gap-2 bg-rose-900 hover:bg-rose-800 text-slate-100 font-mono font-bold px-3 py-1.5 border border-rose-950 transition-all text-[10px]"
+                className="flex items-center gap-2 bg-rose-700 hover:bg-rose-600 text-slate-100 font-mono font-bold px-3 py-1.5 border border-rose-800 transition-all text-[10px]"
               >
                 DISCONNECT
               </button>
             )}
             <button 
               onClick={fetchData}
-              className="p-1.5 border border-sky-900/40 hover:bg-sky-900/10 text-sky-900 transition-all rounded"
+              className="p-1.5 border border-blue-700/40 hover:bg-blue-700/10 text-blue-700 transition-all rounded"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
@@ -290,15 +373,15 @@ export default function Dashboard() {
 
         {/* Section 1: Detail Pengambil List Repo */}
         {gitToken && (
-          <section className="border border-sky-900/40 p-6 bg-sky-900/[0.02]">
-            <h2 className="font-serif italic text-lg font-extrabold text-sky-950 mb-3 flex items-center gap-2">
-              <Compass className="h-4 w-4" />
+          <section className="border border-blue-700/40 p-6 bg-blue-50">
+            <h2 className="font-serif italic text-lg font-extrabold text-blue-900 mb-3 flex items-center gap-2">
+              <Compass className="h-4 w-4 text-blue-700" />
               PILIH REPOSITORI AKTIF GITHUB
             </h2>
-            <p className="text-[10px] text-sky-900/60 font-mono mb-4">KLIK PADA REPO UNTUK MENJADIKANNYA SUMBER UTAMA DASHBOARD</p>
+            <p className="text-[10px] text-blue-800/60 font-mono mb-4">KLIK PADA REPO UNTUK MENJADIKANNYA SUMBER UTAMA DASHBOARD</p>
             
             {isLoadingRepos ? (
-              <div className="font-mono text-sky-800 text-xs py-2">Memuat semua repositori GitHub Anda...</div>
+              <div className="font-mono text-blue-800 text-xs py-2 animate-pulse">Memuat semua repositori GitHub Anda...</div>
             ) : repoError ? (
               <div className="font-mono text-rose-700 text-xs py-2">Gagal: {repoError}</div>
             ) : (
@@ -309,8 +392,8 @@ export default function Dashboard() {
                     onClick={() => selectRepo(repo)}
                     className={`text-left p-3 border font-mono text-[10px] transition-all flex flex-col justify-between h-20 ${
                       activeRepo?.github_repo_id === repo.id
-                        ? 'bg-sky-900 text-white border-sky-950'
-                        : 'border-sky-900/20 bg-white hover:bg-sky-900/5 text-sky-900'
+                        ? 'bg-blue-700 text-white border-blue-800'
+                        : 'border-blue-700/20 bg-white hover:bg-blue-50 text-blue-800'
                     }`}
                   >
                     <span className="font-bold truncate w-full">{repo.name}</span>
@@ -327,32 +410,32 @@ export default function Dashboard() {
           
           {/* Kolom Kiri: AI Agent Grid */}
           <div className="space-y-6">
-            <h2 className="font-serif italic text-lg font-black text-sky-950 border-b border-sky-900/40 pb-2 flex items-center gap-2">
-              <Activity className="h-4 w-4" />
+            <h2 className="font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-700" />
               AI AGENTS STATUS
             </h2>
             
             <div className="space-y-4">
               {agents.map((agent) => (
-                <div key={agent.id} className="border border-sky-900/40 p-4 bg-white hover:border-sky-900 transition-all flex flex-col justify-between h-36">
+                <div key={agent.id} className="border border-blue-700/40 p-4 bg-white hover:border-blue-700 transition-all flex flex-col justify-between h-36">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-bold text-sky-950 text-sm tracking-wide">{agent.name}</h3>
-                      <span className="text-[10px] text-sky-900/50 uppercase tracking-widest">{agent.role} Agent</span>
+                      <h3 className="font-bold text-blue-900 text-sm tracking-wide">{agent.name}</h3>
+                      <span className="text-[10px] text-blue-800/50 uppercase tracking-widest">{agent.role} Agent</span>
                     </div>
                     <span className={`px-2 py-0.5 border text-[9px] font-bold ${
                       agent.status === 'Working' ? 'border-emerald-600 bg-emerald-50 text-emerald-700 animate-pulse' :
                       agent.status === 'Waiting Review' ? 'border-amber-600 bg-amber-50 text-amber-700' :
-                      'border-sky-900/20 bg-slate-100 text-sky-900/60'
+                      'border-blue-700/20 bg-slate-100 text-blue-800/60'
                     }`}>
                       {agent.status}
                     </span>
                   </div>
 
-                  <div className="pt-3 border-t border-sky-900/10 flex justify-between items-center text-[10px] text-sky-900/60">
+                  <div className="pt-3 border-t border-blue-700/10 flex justify-between items-center text-[10px] text-blue-800/60">
                     <div>
                       <span className="text-[9px] opacity-50 uppercase font-mono block">LAST ACTIVITY</span>
-                      <span className="font-bold text-sky-950 truncate max-w-[200px] block">
+                      <span className="font-bold text-blue-900 truncate max-w-[200px] block">
                         {commits.find(c => c.author_name === agent.name)?.message || 'NO COMMITS YET'}
                       </span>
                     </div>
@@ -367,37 +450,37 @@ export default function Dashboard() {
 
           {/* Kolom Tengah: Activity Timeline */}
           <div className="space-y-6">
-            <h2 className="font-serif italic text-lg font-black text-sky-950 border-b border-sky-900/40 pb-2 flex items-center gap-2">
-              <GitCommit className="h-4 w-4" />
+            <h2 className="font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+              <GitCommit className="h-4 w-4 text-blue-700" />
               ACTIVITY TIMELINE
             </h2>
 
-            <div className="border border-sky-900/40 p-6 bg-white space-y-6 h-[460px] overflow-y-auto">
+            <div className="border border-blue-700/40 p-6 bg-white space-y-6 h-[460px] overflow-y-auto">
               {commits.length === 0 ? (
-                <div className="text-center py-20 text-sky-900/40 font-mono">
+                <div className="text-center py-20 text-blue-800/40 font-mono">
                   BELUM ADA AKTIVITAS COMMIT MASUK
                 </div>
               ) : (
-                <div className="relative border-l border-sky-900/20 pl-4 space-y-6">
+                <div className="relative border-l-2 border-blue-700/20 pl-4 space-y-6">
                   {commits.map((commit) => (
                     <div key={commit.id} className="relative">
                       {/* Timeline Dot */}
-                      <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-sky-900 border border-sky-950" />
+                      <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-blue-700 border border-blue-800" />
 
                       <div className="flex justify-between items-center text-[10px]">
-                        <span className="font-bold text-sky-950">{commit.author_name}</span>
-                        <span className="font-mono text-sky-900/50">
+                        <span className="font-bold text-blue-850">{commit.author_name}</span>
+                        <span className="font-mono text-blue-800/50">
                           {new Date(commit.commit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
 
-                      <p className="text-[11px] font-mono text-sky-900/80 bg-slate-100/60 p-2 border border-sky-900/10 mt-1 uppercase">
+                      <p className="text-[11px] font-mono text-blue-900/80 bg-blue-50/50 p-2 border border-blue-700/10 mt-1 uppercase">
                         {commit.message}
                       </p>
 
-                      <div className="flex items-center gap-3 mt-1.5 text-[9px] text-sky-900/40 font-mono">
-                        <span className="text-emerald-700">+{commit.added_lines}</span>
-                        <span className="text-rose-700">-{commit.deleted_lines}</span>
+                      <div className="flex items-center gap-3 mt-1.5 text-[9px] text-blue-800/40 font-mono">
+                        <span className="text-emerald-700 font-bold">+{commit.added_lines}</span>
+                        <span className="text-rose-700 font-bold">-{commit.deleted_lines}</span>
                         <span>{commit.branch}</span>
                         <span>{commit.sha.substring(0, 7)}</span>
                       </div>
@@ -408,53 +491,89 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Kolom Kanan: Detail & AI Insight */}
+          {/* Kolom Kanan: Detail, AI Insight & Goals */}
           <div className="space-y-6">
-            <h2 className="font-serif italic text-lg font-black text-sky-950 border-b border-sky-900/40 pb-2 flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              AI INSIGHT & TRACKER
+            <h2 className="font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-blue-700" />
+              AI INSIGHT & GOALS
             </h2>
 
-            {/* Project Progress */}
-            <div className="border border-sky-900/40 p-5 bg-white space-y-4">
-              {tasks.map((task) => (
-                <div key={task.id} className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-sky-950 text-xs">{task.title}</span>
-                    <span className="font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 border border-emerald-600/30">
-                      {task.progress}%
-                    </span>
-                  </div>
+            {/* Fitur Goals Baru per Repo */}
+            <div className="border border-blue-700/40 p-5 bg-white space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
+                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                  <Target className="h-4 w-4 text-blue-700" />
+                  PROJECT GOALS
+                </span>
+                <span className="font-mono text-[9px] bg-blue-50 text-blue-700 border border-blue-700/30 px-1.5 py-0.5 font-bold">
+                  {goals.filter(g => g.status === 'Achieved').length}/{goals.length} COMPLETED
+                </span>
+              </div>
 
-                  <div className="w-full bg-slate-100 h-1.5 border border-sky-900/10">
-                    <div className="bg-sky-900 h-full transition-all duration-500" style={{ width: `${task.progress}%` }} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[9px]">
-                    {task.subtasks.map((st, i) => (
-                      <div 
-                        key={i} 
-                        className={`flex items-center gap-2 p-1.5 border ${
-                          st.done 
-                            ? 'bg-emerald-50/50 border-emerald-900/20 text-emerald-800' 
-                            : 'bg-white border-sky-900/10 text-sky-900/50'
-                        }`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${st.done ? 'bg-emerald-600' : 'bg-slate-300'}`} />
-                        {st.title}
+              {/* List Goals */}
+              <div className="space-y-2.5 max-h-44 overflow-y-auto pr-1">
+                {goals.length === 0 ? (
+                  <p className="text-blue-800/40 text-[9px] font-mono text-center py-4">BELUM ADA GOAL. TAMBAHKAN GOAL DI BAWAH.</p>
+                ) : (
+                  goals.map((goal) => (
+                    <div 
+                      key={goal.id} 
+                      onClick={() => toggleGoalStatus(goal.id, goal.status)}
+                      className={`p-2.5 border cursor-pointer transition-all flex items-start gap-2.5 ${
+                        goal.status === 'Achieved' 
+                          ? 'bg-emerald-50/50 border-emerald-700/30 text-emerald-800 line-through opacity-70' 
+                          : 'bg-slate-50 border-blue-700/10 hover:border-blue-700 text-blue-950'
+                      }`}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={goal.status === 'Achieved'} 
+                        onChange={() => {}} // Controlled by outer div click
+                        className="mt-0.5 accent-emerald-600"
+                      />
+                      <div className="text-[10px]">
+                        <span className="font-bold block tracking-wide">{goal.title}</span>
+                        {goal.description && <span className="opacity-60 text-[9px] block font-mono lowercase mt-0.5">{goal.description}</span>}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Form Tambah Goal Baru */}
+              <form onSubmit={handleAddGoal} className="pt-3 border-t border-blue-700/10 space-y-2">
+                <input 
+                  type="text" 
+                  value={newGoalTitle} 
+                  onChange={(e) => setNewGoalTitle(e.target.value)}
+                  placeholder="NAMA TARGET / GOALS BARU"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
+                  required
+                />
+                <input 
+                  type="text" 
+                  value={newGoalDesc} 
+                  onChange={(e) => setNewGoalDesc(e.target.value)}
+                  placeholder="DESKRIPSI TARGET (OPSIONAL)"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
+                />
+                <button
+                  type="submit"
+                  disabled={isAddingGoal}
+                  className="w-full bg-blue-700 hover:bg-blue-600 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  {isAddingGoal ? 'ADDING...' : 'ADD NEW GOAL'}
+                </button>
+              </form>
             </div>
 
             {/* AI Summary */}
-            <div className="border border-sky-900/40 p-5 bg-white space-y-3">
-              <span className="font-bold text-sky-950 block text-xs">AI HEALTH DAILY SUMMARY</span>
-              <ul className="space-y-2 text-sky-900/70 font-mono text-[10px] pl-3 list-disc marker:text-sky-900">
+            <div className="border border-blue-700/40 p-5 bg-white space-y-3">
+              <span className="font-bold text-blue-900 block text-xs">AI HEALTH DAILY SUMMARY</span>
+              <ul className="space-y-2 text-blue-800/70 font-mono text-[10px] pl-3 list-disc marker:text-blue-700">
                 {todayCommits.length === 0 ? (
-                  <p className="text-sky-900/40 text-[9px] list-none pl-0">BELUM ADA DATA AKTIVITAS UNTUK HARI INI.</p>
+                  <p className="text-blue-800/40 text-[9px] list-none pl-0">BELUM ADA DATA AKTIVITAS UNTUK HARI INI.</p>
                 ) : (
                   <>
                     <li>UI AGENT: MENDESAIN HALAMAN LOGIN RESPONSIVE DAN FUNGSIONAL.</li>
@@ -463,21 +582,21 @@ export default function Dashboard() {
                   </>
                 )}
               </ul>
-              <div className="pt-3 border-t border-sky-900/10 flex justify-between items-center text-[10px]">
+              <div className="pt-3 border-t border-blue-700/10 flex justify-between items-center text-[10px]">
                 <span className="opacity-50 font-mono">SYSTEM HEALTH</span>
                 <span className="text-emerald-700 font-bold">🟢 HEALTHY</span>
               </div>
             </div>
 
             {/* Agent Simulator */}
-            <div className="border border-sky-900/40 p-5 bg-white space-y-4">
-              <span className="font-bold text-sky-950 block text-xs">SIMULATE AGENT COMMIT</span>
+            <div className="border border-blue-700/40 p-5 bg-white space-y-4">
+              <span className="font-bold text-blue-900 block text-xs">SIMULATE AGENT COMMIT</span>
               <form onSubmit={handleSimulate} className="space-y-3">
                 <div className="flex gap-2">
                   <select 
                     value={selectedAgent} 
                     onChange={(e) => setSelectedAgent(e.target.value)}
-                    className="flex-1 bg-slate-50 border border-sky-900/20 p-2 text-sky-950 focus:outline-none text-[10px]"
+                    className="flex-1 bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px]"
                   >
                     <option value="UI Agent">UI Agent</option>
                     <option value="Backend Agent">Backend Agent</option>
@@ -490,7 +609,7 @@ export default function Dashboard() {
                     onChange={(e) => setFilesCount(Number(e.target.value))}
                     min="1" 
                     max="10"
-                    className="w-12 bg-slate-50 border border-sky-900/20 p-2 text-center text-sky-950 focus:outline-none text-[10px]"
+                    className="w-12 bg-slate-50 border border-blue-700/20 p-2 text-center text-blue-950 focus:outline-none text-[10px]"
                     required
                   />
                 </div>
@@ -499,20 +618,20 @@ export default function Dashboard() {
                   value={simMessage} 
                   onChange={(e) => setSimMessage(e.target.value)}
                   placeholder="COMMIT MESSAGE"
-                  className="w-full bg-slate-50 border border-sky-900/20 p-2 text-sky-950 focus:outline-none text-[10px]"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px]"
                   required
                 />
                 <button
                   type="submit"
                   disabled={isSimulating}
-                  className="w-full bg-sky-900 hover:bg-sky-850 disabled:bg-sky-950/60 text-white font-mono font-bold py-2 border border-sky-950 transition-all text-[10px] flex items-center justify-center gap-2"
+                  className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-2 border border-blue-800 transition-all text-[10px] flex items-center justify-center gap-2"
                 >
                   <Play className="h-3 w-3" />
                   {isSimulating ? 'SIMULATING...' : 'SIMULATE COMMIT'}
                 </button>
               </form>
               {simStatus && (
-                <div className="p-2 border border-sky-900/20 bg-slate-50 font-mono text-[9px] text-sky-950">
+                <div className="p-2 border border-blue-700/20 bg-slate-50 font-mono text-[9px] text-blue-950">
                   {simStatus}
                 </div>
               )}
@@ -523,7 +642,7 @@ export default function Dashboard() {
         </div>
 
         {/* Footer */}
-        <footer className="border-t border-sky-900/60 pt-4 flex justify-between items-center text-sky-900/50 font-mono text-[9px]">
+        <footer className="border-t-2 border-blue-700 pt-4 flex justify-between items-center text-blue-700/60 font-mono text-[9px]">
           <span>© 2026 FIKRI BINTANG PURNOMO - ORCHESTRATOR DASHBOARD</span>
           <span>V1.0.0</span>
         </footer>
