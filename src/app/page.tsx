@@ -288,17 +288,50 @@ function convertGitHubWeeks(ghWeeks: any[]): { date: string; count: number; dow:
   );
 }
 
-function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; year: number; onYearChange: (y: number) => void }) {
-  const { weeks, totalCommits } = buildHeatmapData(commits, year);
+function CommitHeatmap({
+  commits, year, onYearChange, gitToken,
+}: {
+  commits: Commit[];
+  year: number;
+  onYearChange: (y: number) => void;
+  gitToken: string | null;
+}) {
+  const [ghData, setGhData]     = React.useState<any>(null);
+  const [loading, setLoading]   = React.useState(false);
+  const [ghError, setGhError]   = React.useState('');
   const [tooltip, setTooltip]   = React.useState<{ text: string; x: number; y: number } | null>(null);
 
-  // Compute month label positions (which column each month starts)
+  // Fetch real GitHub contribution data whenever token or year changes
+  useEffect(() => {
+    if (!gitToken) { setGhData(null); return; }
+    setLoading(true); setGhError('');
+    fetch('/api/github/contributions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: gitToken, year }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.success) setGhData(d); else setGhError(d.error || 'GitHub API error'); })
+      .catch(e => setGhError(e.message))
+      .finally(() => setLoading(false));
+  }, [gitToken, year]);
+
+  // Decide which data source to use
+  const weeks: { date: string | null; count: number; dow: number }[][] = ghData
+    ? convertGitHubWeeks(ghData.weeks)
+    : buildHeatmapData(commits, year).weeks;
+
+  const totalContributions = ghData
+    ? ghData.totalContributions
+    : buildHeatmapData(commits, year).totalCommits;
+
+  // Month label positions
   const monthPositions: { label: string; col: number }[] = [];
   weeks.forEach((week, wi) => {
     week.forEach(day => {
-      if (day.date && day.date.endsWith('-01')) {
-        const month = parseInt(day.date.split('-')[1], 10) - 1;
-        monthPositions.push({ label: MONTH_NAMES[month], col: wi });
+      if (day.date?.endsWith('-01')) {
+        const m = parseInt(day.date.split('-')[1], 10) - 1;
+        monthPositions.push({ label: MONTH_NAMES[m], col: wi });
       }
     });
   });
@@ -307,7 +340,6 @@ function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; yea
   const years = [currentYear - 3, currentYear - 2, currentYear - 1, currentYear];
   const CELL  = 11;
   const GAP   = 2;
-  const totalWidth  = weeks.length * (CELL + GAP);
 
   return (
     <div className="border border-blue-700/40 p-6 bg-white space-y-4">
@@ -317,9 +349,32 @@ function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; yea
           <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2">
             <Activity className="h-5 w-5 text-blue-700" />
             CONTRIBUTION HEATMAP
+            {ghData?.login && (
+              <span className="text-[10px] font-mono font-normal text-blue-700/60 normal-case tracking-normal">
+                @{ghData.login}
+              </span>
+            )}
           </h2>
           <p className="font-mono text-[9px] text-blue-800/50 mt-0.5">
-            <span className="font-bold text-blue-900">{totalCommits.toLocaleString()}</span> COMMITS IN {year}
+            {loading ? (
+              <span className="animate-pulse">LOADING FROM GITHUB...</span>
+            ) : ghError ? (
+              <span className="text-rose-600">{ghError}</span>
+            ) : (
+              <>
+                <span className="font-bold text-blue-900">{totalContributions.toLocaleString()}</span>
+                {' '}CONTRIBUTIONS IN {year}
+                {ghData && (
+                  <span className="ml-3 gap-2 inline-flex">
+                    <span className="text-blue-700">↗ {ghData.totalCommits} commits</span>
+                    <span className="text-violet-600">⟳ {ghData.totalPRs} PRs</span>
+                    <span className="text-amber-600">◎ {ghData.totalIssues} issues</span>
+                    <span className="text-emerald-600">✓ {ghData.totalReviews} reviews</span>
+                  </span>
+                )}
+                {!gitToken && <span className="ml-2 text-blue-800/30">(connect GitHub for real data)</span>}
+              </>
+            )}
           </p>
         </div>
         {/* Year Selector */}
@@ -339,7 +394,7 @@ function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; yea
       </div>
 
       {/* Grid */}
-      <div className="overflow-x-auto pb-1" style={{ position: 'relative' }}>
+      <div className="overflow-x-auto pb-1" style={{ position: 'relative', opacity: loading ? 0.4 : 1, transition: 'opacity 0.3s' }}>
         {/* Month labels */}
         <div className="flex mb-1" style={{ paddingLeft: 32 }}>
           {(() => {
@@ -359,10 +414,7 @@ function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; yea
                 lastCol = col;
               }
             });
-            // Fill remaining
-            labels.push(
-              <span key="end" className="flex-1" />
-            );
+            labels.push(<span key="end" className="flex-1" />);
             return labels;
           })()}
         </div>
@@ -382,10 +434,7 @@ function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; yea
           </div>
 
           {/* Cells */}
-          <div
-            className="relative"
-            style={{ display: 'flex', gap: GAP, flexDirection: 'row' }}
-          >
+          <div style={{ display: 'flex', gap: GAP, flexDirection: 'row' }}>
             {weeks.map((week, wi) => (
               <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: GAP }}>
                 {week.map((day, di) => (
@@ -395,7 +444,7 @@ function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; yea
                       if (!day.date) return;
                       const rect = (e.target as HTMLElement).getBoundingClientRect();
                       setTooltip({
-                        text: `${day.count} commit${day.count !== 1 ? 's' : ''} — ${day.date}`,
+                        text: `${day.count} contribution${day.count !== 1 ? 's' : ''} — ${day.date}`,
                         x: rect.left,
                         y: rect.top,
                       });
@@ -443,6 +492,7 @@ function CommitHeatmap({ commits, year, onYearChange }: { commits: Commit[]; yea
     </div>
   );
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD
@@ -845,6 +895,7 @@ export default function Dashboard() {
           commits={allCommitsRef.current}
           year={heatmapYear}
           onYearChange={setHeatmapYear}
+          gitToken={gitToken}
         />
 
         {/* ── Commit Activity Chart ─────────────────────────────────────────── */}

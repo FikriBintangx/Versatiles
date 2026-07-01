@@ -5,7 +5,7 @@ export async function GET() {
   const redirectUri = 'https://versatiles.vercel.app/api/auth/github/callback';
   
   // Minta hak akses untuk read repo (public & private jika diperlukan)
-  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=repo,user`;
+  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=repo%20user&prompt=consent`;
 
   return NextResponse.redirect(githubAuthUrl);
 }
