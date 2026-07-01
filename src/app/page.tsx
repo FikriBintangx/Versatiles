@@ -357,7 +357,7 @@ function CommitHeatmap({
   const GAP   = 2;
 
   return (
-    <div className="border border-blue-700/40 p-6 bg-white space-y-4">
+    <div className="border border-blue-700/40 p-6 bg-white space-y-4 resize overflow-auto">
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center border-b border-blue-700/10 pb-3 gap-3">
         <div>
@@ -1124,7 +1124,7 @@ export default function Dashboard() {
           });
 
           return (
-            <section className="border border-blue-700/40 p-6 bg-blue-50">
+            <section className="border border-blue-700/40 p-6 bg-blue-50 resize overflow-auto">
               <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
                 <div>
                   <h2 className="font-serif italic text-lg font-extrabold text-blue-900 mb-1 flex items-center gap-2">
@@ -1214,7 +1214,7 @@ export default function Dashboard() {
 
         {/* ── Repo Explorer ─────────────────────────────────────────────────── */}
         {activeRepo && (
-          <section className="border border-blue-700/40 p-6 bg-white space-y-4">
+          <section className="border border-blue-700/40 p-6 bg-white space-y-4 resize overflow-auto">
             <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2 border-b border-blue-700/20 pb-3">
               <Folder className="h-5 w-5 text-blue-700" />
               REPOSITORY EXPLORER: <span className="text-blue-600">{activeRepo.full_name}</span>
@@ -1272,7 +1272,7 @@ export default function Dashboard() {
             </h2>
             <div className="space-y-4">
               {agents.map(agent => (
-                <div key={agent.id} className="border border-blue-700/40 p-4 bg-white hover:border-blue-700 transition-all flex flex-col justify-between h-36">
+                <div key={agent.id} className="border border-blue-700/40 p-4 bg-white hover:border-blue-700 transition-all flex flex-col justify-between h-36 resize overflow-auto">
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-bold text-blue-900 text-sm tracking-wide">{agent.name}</h3>
@@ -1306,7 +1306,7 @@ export default function Dashboard() {
               <GitCommit className="h-4 w-4 text-blue-700" />
               ACTIVITY TIMELINE
             </h2>
-            <div className="border border-blue-700/40 p-6 bg-white space-y-6 h-[460px] overflow-y-auto">
+            <div className="border border-blue-700/40 p-6 bg-white space-y-6 h-[460px] overflow-y-auto resize">
               {commits.length === 0 ? (
                 <div className="text-center py-20 text-blue-800/40 font-mono">BELUM ADA AKTIVITAS</div>
               ) : (
@@ -1344,7 +1344,7 @@ export default function Dashboard() {
             </h2>
 
             {/* ── Goals with Priority ─────────────────────────────────── */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-4">
+            <div className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
               <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <Target className="h-4 w-4 text-blue-700" />
@@ -1458,7 +1458,7 @@ export default function Dashboard() {
             </div>
 
             {/* Secure Password Vault */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-4">
+            <div className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
               <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <Key className="h-4 w-4 text-blue-700" />
@@ -1580,7 +1580,7 @@ export default function Dashboard() {
             </div>
 
             {/* Antigravity Reports */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-3">
+            <div className="border border-blue-700/40 p-5 bg-white space-y-3 resize overflow-auto">
               <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-blue-700" />
@@ -1622,7 +1622,7 @@ export default function Dashboard() {
             </div>
 
             {/* Simulator */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-4">
+            <div className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
               <span className="font-bold text-blue-900 block text-xs">SIMULATE AGENT COMMIT</span>
               <form onSubmit={handleSimulate} className="space-y-3">
                 <div className="flex gap-2">
