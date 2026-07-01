@@ -19,8 +19,18 @@ import {
   ArrowRight,
   Plus,
   Target,
-  FileText
+  FileText,
+  Folder,
+  FileCode,
+  GitBranch,
+  Star
 } from 'lucide-react';
+
+interface RepoDetails {
+  detail: any;
+  commits: any[];
+  contents: any[];
+}
 
 interface Agent {
   id: string;
@@ -64,6 +74,8 @@ interface Goal {
   title: string;
   description: string;
   status: string;
+  prompt?: string;
+  assigned_agent?: string;
   created_at: string;
 }
 
@@ -84,6 +96,8 @@ export default function Dashboard() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [newGoalTitle, setNewGoalTitle] = useState('');
   const [newGoalDesc, setNewGoalDesc] = useState('');
+  const [newGoalPrompt, setNewGoalPrompt] = useState('');
+  const [assignedAgent, setAssignedAgent] = useState('UI Agent');
   const [isAddingGoal, setIsAddingGoal] = useState(false);
 
   // State untuk Daily AI Report
@@ -97,6 +111,10 @@ export default function Dashboard() {
   const [gitRepos, setGitRepos] = useState<GitHubRepo[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
   const [repoError, setRepoError] = useState('');
+
+  // State untuk Repo Explorer
+  const [repoDetails, setRepoDetails] = useState<RepoDetails | null>(null);
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
   // State untuk form simulator
   const [selectedAgent, setSelectedAgent] = useState('UI Agent');
@@ -264,24 +282,69 @@ export default function Dashboard() {
     }
   }, [gitToken]);
 
+  // Fetch Repo Details saat activeRepo berubah
+  useEffect(() => {
+    if (activeRepo && gitToken) {
+      setIsFetchingDetails(true);
+      fetch('/api/github/repo-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: gitToken,
+          owner: activeRepo.owner,
+          repo: activeRepo.name
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setRepoDetails(data);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setIsFetchingDetails(false));
+    } else {
+      setRepoDetails(null);
+    }
+  }, [activeRepo, gitToken]);
+
   const selectRepo = async (repo: GitHubRepo) => {
     try {
-      const { data, error } = await supabase
+      // 1. Cek apakah ada di DB
+      let { data: existingRepo, error: selectError } = await supabase
         .from('repositories')
-        .upsert({
-          github_repo_id: repo.id,
-          name: repo.name,
-          full_name: repo.full_name,
-          owner: repo.owner,
-        }, { onConflict: 'github_repo_id' })
-        .select()
+        .select('*')
+        .eq('github_repo_id', repo.id)
         .single();
+
+      if (selectError && selectError.code !== 'PGRST116') {
+        throw selectError; // error selain Not Found
+      }
+
+      // 2. Jika tidak ada, insert
+      if (!existingRepo) {
+        const { data: newRepo, error: insertError } = await supabase
+          .from('repositories')
+          .insert({
+            github_repo_id: repo.id,
+            name: repo.name,
+            full_name: repo.full_name,
+            owner: repo.owner,
+          })
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        existingRepo = newRepo;
+      }
       
-      if (error) throw error;
-      setActiveRepo(data);
+      setActiveRepo(existingRepo);
       fetchData();
     } catch (err: any) {
-      alert(`Gagal menyimpan repo: ${err.message}`);
+      console.warn("Supabase Error (menggunakan fallback lokal):", err.message);
+      // Fallback: Set UI menggunakan data GitHub
+      setActiveRepo({ ...repo, id: repo.id.toString() });
+      fetchData();
     }
   };
 
@@ -329,12 +392,15 @@ export default function Dashboard() {
           repo_id: activeRepo.id,
           title: newGoalTitle,
           description: newGoalDesc,
+          prompt: newGoalPrompt || null,
+          assigned_agent: assignedAgent,
           status: 'In Progress'
         });
       
       if (error) throw error;
       setNewGoalTitle('');
       setNewGoalDesc('');
+      setNewGoalPrompt('');
     } catch (err: any) {
       alert(`Gagal membuat Goal: ${err.message}`);
     } finally {
@@ -475,6 +541,60 @@ export default function Dashboard() {
           </section>
         )}
 
+        {/* Section: Repo Explorer */}
+        {activeRepo && (
+          <section className="border border-blue-700/40 p-6 bg-white space-y-4">
+             <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2 border-b border-blue-700/20 pb-3">
+              <Folder className="h-5 w-5 text-blue-700" />
+              REPOSITORY EXPLORER: <span className="text-blue-600">{activeRepo.full_name}</span>
+            </h2>
+            
+            {isFetchingDetails ? (
+              <div className="font-mono text-blue-800 text-xs py-4 animate-pulse">MEMUAT DETAIL REPOSITORI DARI GITHUB...</div>
+            ) : repoDetails ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Detail & Files */}
+                <div className="space-y-4">
+                   <div className="flex gap-4 font-mono text-[10px] text-blue-800/80 bg-slate-50 p-3 border border-blue-700/10">
+                     <span className="flex items-center gap-1"><Star className="h-3 w-3" /> {repoDetails.detail?.stargazers_count} STARS</span>
+                     <span className="flex items-center gap-1"><GitBranch className="h-3 w-3" /> {repoDetails.detail?.default_branch}</span>
+                     <span>{repoDetails.detail?.language || 'Unknown Lang'}</span>
+                   </div>
+                   
+                   <div className="border border-blue-700/20">
+                     <div className="bg-blue-50 text-blue-900 font-bold p-2 text-[10px] border-b border-blue-700/20">ROOT DIRECTORY</div>
+                     <div className="max-h-60 overflow-y-auto bg-white p-2 space-y-1">
+                        {repoDetails.contents.length > 0 ? repoDetails.contents.map((file, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-[10px] font-mono text-blue-900 p-1.5 hover:bg-slate-50 cursor-pointer">
+                            {file.type === 'dir' ? <Folder className="h-3.5 w-3.5 text-blue-500" /> : <FileCode className="h-3.5 w-3.5 text-blue-700/60" />}
+                            <span className="truncate">{file.name}</span>
+                          </div>
+                        )) : <div className="text-center text-[9px] text-blue-800/50 p-4">KOSONG</div>}
+                     </div>
+                   </div>
+                </div>
+
+                {/* Recent Commits */}
+                <div className="border border-blue-700/20 flex flex-col">
+                   <div className="bg-blue-50 text-blue-900 font-bold p-2 text-[10px] border-b border-blue-700/20">RECENT GITHUB COMMITS</div>
+                   <div className="max-h-[304px] overflow-y-auto bg-white p-3 space-y-3">
+                      {repoDetails.commits.length > 0 ? repoDetails.commits.map((commit, idx) => (
+                        <div key={idx} className="border-b border-blue-700/10 pb-2 last:border-0 last:pb-0">
+                           <div className="flex justify-between items-center mb-1">
+                              <span className="font-bold text-[10px] text-blue-800">{commit.author}</span>
+                              <span className="text-[9px] text-blue-600/60 font-mono">{new Date(commit.date).toLocaleDateString()}</span>
+                           </div>
+                           <p className="text-[10px] font-mono text-blue-950/80 mb-1 leading-snug">{commit.message}</p>
+                           <a href={commit.html_url} target="_blank" rel="noreferrer" className="text-[9px] font-bold text-blue-600 hover:underline">SHA: {commit.sha.substring(0,7)}</a>
+                        </div>
+                      )) : <div className="text-center text-[9px] text-blue-800/50 p-4">TIDAK ADA COMMIT</div>}
+                   </div>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        )}
+
         {/* Dashboard Grid 3 Kolom */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
@@ -610,16 +730,28 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Form Tambah Goal */}
+               {/* Form Tambah Goal */}
               <form onSubmit={handleAddGoal} className="pt-3 border-t border-blue-700/10 space-y-2">
-                <input 
-                  type="text" 
-                  value={newGoalTitle} 
-                  onChange={(e) => setNewGoalTitle(e.target.value)}
-                  placeholder="NAMA TARGET / GOALS BARU"
-                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
-                  required
-                />
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newGoalTitle} 
+                    onChange={(e) => setNewGoalTitle(e.target.value)}
+                    placeholder="TARGET / GOAL"
+                    className="flex-1 bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
+                    required
+                  />
+                  <select
+                    value={assignedAgent}
+                    onChange={(e) => setAssignedAgent(e.target.value)}
+                    className="w-28 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                  >
+                    <option value="UI Agent">UI AGENT</option>
+                    <option value="Backend Agent">BACKEND AGENT</option>
+                    <option value="Testing Agent">TESTING AGENT</option>
+                    <option value="DevOps Agent">DEVOPS AGENT</option>
+                  </select>
+                </div>
                 <input 
                   type="text" 
                   value={newGoalDesc} 
@@ -627,13 +759,20 @@ export default function Dashboard() {
                   placeholder="DESKRIPSI TARGET (OPSIONAL)"
                   className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
                 />
+                {/* Input Prompt Khusus untuk mengirim instruksi kerja ke Agent Worker */}
+                <textarea 
+                  value={newGoalPrompt} 
+                  onChange={(e) => setNewGoalPrompt(e.target.value)}
+                  placeholder="AI INSTRUCTION / PROMPT (E.G. BUAT FILE NAVBAR.TSX DI SRC/COMPONENTS)"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[9px] font-mono uppercase h-14"
+                />
                 <button
                   type="submit"
                   disabled={isAddingGoal}
                   className="w-full bg-blue-700 hover:bg-blue-600 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
                 >
                   <Plus className="h-3 w-3" />
-                  {isAddingGoal ? 'ADDING...' : 'ADD NEW GOAL'}
+                  {isAddingGoal ? 'ASSIGNING TASK...' : 'ASSIGN TASK TO AGENT'}
                 </button>
               </form>
             </div>
