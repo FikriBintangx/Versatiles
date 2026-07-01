@@ -5,6 +5,14 @@ import { supabase } from '@/lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart
 } from 'recharts';
+import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
 import { 
   Play, 
   GitCommit, 
@@ -89,6 +97,157 @@ interface GitHubRepo {
   owner: string;
   description: string;
   html_url: string;
+}
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+  type?: 'info' | 'success' | 'warning' | 'error';
+}
+
+// ─── Interactive Terminal Component ────────────────────────────────────────────
+function InteractiveTerminal({ agents, onCommand }: { agents: any[], onCommand: (cmd: string) => Promise<string> }) {
+  const [history, setHistory] = useState<{ type: 'input' | 'output', text: string }[]>([
+    { type: 'output', text: 'ANTIGRAVITY TERMINAL v1.0.0 INITIALIZED.' },
+    { type: 'output', text: 'Type "help" for available commands.' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isProcessing) return;
+    const cmd = input.trim();
+    setHistory(prev => [...prev, { type: 'input', text: '> ' + cmd }]);
+    setInput('');
+
+    if (cmd.toLowerCase() === 'clear') {
+      setHistory([]);
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const output = await onCommand(cmd);
+      setHistory(prev => [...prev, { type: 'output', text: output }]);
+    } catch (err: any) {
+      setHistory(prev => [...prev, { type: 'output', text: 'Error: ' + err.message }]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="border border-blue-700/40 bg-blue-950 text-blue-300 font-mono text-[10px] h-full flex flex-col h-[300px]">
+      <div className="bg-blue-900/50 p-2 border-b border-blue-700/40 font-bold tracking-widest text-blue-200">
+        {">_ SYSTEM_CONSOLE"}
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-1">
+        {history.map((line, i) => (
+          <div key={i} className={`${line.type === 'input' ? 'text-blue-100' : 'text-blue-400'}`}>
+            <pre className="font-mono text-[10px] whitespace-pre-wrap font-inherit m-0">{line.text}</pre>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      <form onSubmit={handleSubmit} className="border-t border-blue-700/40 p-2 flex bg-blue-900/20">
+        <span className="text-blue-400 mr-2">{">"}</span>
+        <input 
+          type="text" 
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          disabled={isProcessing}
+          className="bg-transparent flex-1 outline-none text-blue-100 placeholder-blue-700/50 disabled:opacity-50"
+          placeholder={isProcessing ? "PROCESSING..." : "ENTER COMMAND..."}
+          spellCheck={false}
+        />
+      </form>
+    </div>
+  );
+}
+
+// ─── Main Page Component ─────────────────────────────────────────────────────
+
+// ─── Kanban Board Component ───────────────────────────────────────────────────
+function KanbanBoard({ goals, onStatusChange }: { goals: any[], onStatusChange: (id: string, status: string) => void }) {
+  const inProgress = goals.filter(g => g.status !== 'Achieved');
+  const achieved = goals.filter(g => g.status === 'Achieved');
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    
+    // Check if dragging over a different column
+    if (overId === 'column-inprogress' || overId === 'column-achieved') {
+       const newStatus = overId === 'column-achieved' ? 'Achieved' : 'In Progress';
+       const goal = goals.find(g => g.id === activeId);
+       if (goal && goal.status !== newStatus) {
+         onStatusChange(activeId, newStatus);
+       }
+    }
+  };
+
+  return (
+    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="grid grid-cols-2 gap-4 h-[250px]">
+        {/* In Progress Column */}
+        <div className="bg-blue-50/50 p-2 border border-blue-700/20 flex flex-col">
+          <div className="font-bold text-blue-900 text-[10px] mb-2 border-b border-blue-700/10 pb-1">IN PROGRESS ({inProgress.length})</div>
+          <SortableContext id="column-inprogress" items={inProgress} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2 overflow-y-auto flex-1 min-h-[50px]" id="column-inprogress">
+              {inProgress.map(goal => <SortableGoalItem key={goal.id} goal={goal} onStatusChange={onStatusChange} />)}
+            </div>
+          </SortableContext>
+        </div>
+        
+        {/* Achieved Column */}
+        <div className="bg-emerald-50/30 p-2 border border-emerald-700/20 flex flex-col">
+          <div className="font-bold text-emerald-900 text-[10px] mb-2 border-b border-emerald-700/10 pb-1">ACHIEVED ({achieved.length})</div>
+          <SortableContext id="column-achieved" items={achieved} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2 overflow-y-auto flex-1 min-h-[50px]" id="column-achieved">
+              {achieved.map(goal => <SortableGoalItem key={goal.id} goal={goal} onStatusChange={onStatusChange} />)}
+            </div>
+          </SortableContext>
+        </div>
+      </div>
+    </DndContext>
+  );
+}
+
+// ─── DnD Sortable Component ──────────────────────────────────────────────────
+function SortableGoalItem({ goal, onStatusChange }: { goal: any, onStatusChange: (id: string, newStatus: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: goal.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 999 : 'auto',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="bg-blue-50 border border-blue-700/20 p-3 flex justify-between items-center cursor-grab active:cursor-grabbing">
+      <div className="overflow-hidden flex-1 mr-2">
+        <div className="font-bold text-blue-900 text-[10px] truncate">{goal.title}</div>
+        <div className="text-[9px] text-blue-800/60 font-mono truncate">
+          Priority: {goal.priority} | Agent: {goal.assigned_agent}
+        </div>
+      </div>
+      <div className={`text-[8px] font-bold px-2 py-0.5 border ${goal.status === 'Achieved' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-amber-100 text-amber-700 border-amber-300'}`}>
+        {goal.status.toUpperCase()}
+      </div>
+    </div>
+  );
 }
 
 interface Goal {
@@ -1261,12 +1420,29 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* ── Dashboard Grid 3 Kolom ───────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* ── Dashboard Grid ── */}
+        <ResponsiveGridLayout
+          className="layout"
+          layouts={{
+            lg: [
+              { i: 'agents', x: 0, y: 0, w: 4, h: 5 },
+              { i: 'timeline', x: 4, y: 0, w: 4, h: 5 },
+              { i: 'goals', x: 8, y: 0, w: 4, h: 3 },
+              { i: 'vault', x: 8, y: 3, w: 4, h: 3 },
+              { i: 'reports', x: 8, y: 6, w: 4, h: 3 },
+              { i: 'simulator', x: 8, y: 9, w: 4, h: 2 },
+              { i: 'terminal', x: 0, y: 5, w: 8, h: 3 }
+            ]
+          }}
+          breakpoints={{lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0}}
+          cols={{lg: 12, md: 10, sm: 6, xs: 4, xxs: 2}}
+          rowHeight={100}
+          draggableHandle=".drag-handle"
+        >
 
           {/* Kolom Kiri: Agents */}
-          <div className="space-y-6">
-            <h2 className="font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+          <div key="agents" className="space-y-6">
+            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
               <Activity className="h-4 w-4 text-blue-700" />
               AI AGENTS STATUS
             </h2>
@@ -1301,8 +1477,8 @@ export default function Dashboard() {
           </div>
 
           {/* Kolom Tengah: Timeline */}
-          <div className="space-y-6">
-            <h2 className="font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+          <div key="timeline" className="space-y-6">
+            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
               <GitCommit className="h-4 w-4 text-blue-700" />
               ACTIVITY TIMELINE
             </h2>
@@ -1335,10 +1511,9 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-
           {/* Kolom Kanan: Goals + Reports + Simulator */}
-          <div className="space-y-6">
-            <h2 className="font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+          <div key="goals" className="space-y-4">
+            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-blue-700" />
               AI INSIGHT &amp; GOALS
             </h2>
@@ -1370,40 +1545,11 @@ export default function Dashboard() {
               </div>
 
               {/* Goal list */}
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-2 pr-1 h-[250px]">
                 {goals.length === 0 ? (
                   <p className="text-blue-800/40 text-[9px] font-mono text-center py-4">BELUM ADA GOAL.</p>
                 ) : (
-                  goals.map(goal => {
-                    const priority = (goal.priority as 'High' | 'Medium' | 'Low') || 'Medium';
-                    const cfg = PRIORITY_CONFIG[priority];
-                    return (
-                      <div
-                        key={goal.id}
-                        onClick={() => toggleGoalStatus(goal.id, goal.status)}
-                        className={`p-2.5 border cursor-pointer transition-all flex items-start gap-2.5 ${
-                          goal.status === 'Achieved'
-                            ? 'bg-emerald-50/50 border-emerald-700/30 text-emerald-800 line-through opacity-70'
-                            : 'bg-slate-50 border-blue-700/10 hover:border-blue-700 text-blue-950'
-                        }`}
-                      >
-                        <input type="checkbox" checked={goal.status === 'Achieved'} onChange={() => {}} className="mt-0.5 accent-emerald-600" />
-                        <div className="text-[10px] flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                            <span className="font-bold block tracking-wide truncate">{goal.title}</span>
-                          </div>
-                          {goal.description && <span className="opacity-60 text-[9px] block font-mono lowercase">{goal.description}</span>}
-                          <div className="flex items-center gap-2 mt-1">
-                            {goal.assigned_agent && (
-                              <span className="text-[8px] font-mono text-blue-700/60 bg-blue-50 px-1 border border-blue-700/20">{goal.assigned_agent}</span>
-                            )}
-                            <span className={`text-[8px] font-bold ${cfg.color}`}>{priority}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                  <KanbanBoard goals={goals} onStatusChange={toggleGoalStatus} />
                 )}
               </div>
 
@@ -1457,9 +1603,9 @@ export default function Dashboard() {
               </form>
             </div>
 
-            {/* Secure Password Vault */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
-              <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
+          </div>
+          <div key="vault" className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
+              <div className="drag-handle cursor-move flex justify-between items-center pb-2 border-b border-blue-700/10">
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <Key className="h-4 w-4 text-blue-700" />
                   PASSWORD SAFE VAULT
@@ -1577,11 +1723,9 @@ export default function Dashboard() {
                   {isSavingPassword ? 'SAVING...' : 'SAVE PASSWORD'}
                 </button>
               </form>
-            </div>
-
-            {/* Antigravity Reports */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-3 resize overflow-auto">
-              <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
+          </div>
+          <div key="reports" className="border border-blue-700/40 p-5 bg-white space-y-3 resize overflow-auto">
+              <div className="drag-handle cursor-move flex justify-between items-center pb-2 border-b border-blue-700/10">
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-blue-700" />
                   ANTIGRAVITY LIVE REPORTS
@@ -1619,11 +1763,9 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Simulator */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
-              <span className="font-bold text-blue-900 block text-xs">SIMULATE AGENT COMMIT</span>
+          </div>
+          <div key="simulator" className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
+              <span className="drag-handle cursor-move font-bold text-blue-900 block text-xs">SIMULATE AGENT COMMIT</span>
               <form onSubmit={handleSimulate} className="space-y-3">
                 <div className="flex gap-2">
                   <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}
@@ -1649,9 +1791,22 @@ export default function Dashboard() {
                 <div className="p-2 border border-blue-700/20 bg-slate-50 font-mono text-[9px] text-blue-950">{simStatus}</div>
               )}
             </div>
-
+            
+          <div key="terminal">
+            <InteractiveTerminal 
+              agents={agents} 
+              onCommand={async (cmd) => {
+                const res = await fetch('/api/terminal', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ command: cmd })
+                });
+                const data = await res.json();
+                return data.output || data.error || 'No output from command.';
+              }} 
+            />
           </div>
-        </div>
+        </ResponsiveGridLayout>
 
         {/* Footer */}
         <footer className="border-t-2 border-blue-700 pt-4 flex justify-between items-center text-blue-700/60 font-mono text-[9px]">
