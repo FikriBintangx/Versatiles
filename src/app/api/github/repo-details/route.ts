@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     // 2. Ambil 5 commit terakhir
     const commitsRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=5`, { headers });
-    let commits = [];
+    let commits: any[] = [];
     if (commitsRes.ok) {
       const rawCommits = await commitsRes.json();
       if (Array.isArray(rawCommits)) {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
     // 3. Ambil struktur file/folder di root
     const contentsRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`, { headers });
-    let contents = [];
+    let contents: any[] = [];
     if (contentsRes.ok) {
       const rawContents = await contentsRes.json();
       if (Array.isArray(rawContents)) {
