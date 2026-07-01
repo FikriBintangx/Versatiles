@@ -23,7 +23,8 @@ import {
   Folder,
   FileCode,
   GitBranch,
-  Star
+  Star,
+  Download
 } from 'lucide-react';
 
 interface RepoDetails {
@@ -362,6 +363,63 @@ export default function Dashboard() {
     } finally {
       setIsAddingGoal(false);
     }
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
+      const element = document.getElementById('report-content');
+      if (element) {
+        // Simpan background asli
+        const originalBg = element.style.backgroundColor;
+        element.style.backgroundColor = '#ffffff'; // Set bg putih untuk PDF
+        element.style.padding = '20px';
+        
+        const canvas = await html2canvas(element, { scale: 2 });
+        
+        // Kembalikan style
+        element.style.backgroundColor = originalBg;
+        element.style.padding = '';
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save('Antigravity_Reports.pdf');
+      }
+    } catch (err) {
+      console.error('Failed to generate PDF', err);
+      alert('Gagal membuat PDF. Pastikan jspdf dan html2canvas terinstall.');
+    }
+  };
+
+  const handleDownloadDoc = () => {
+    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Export HTML To Doc</title></head><body>";
+    const footer = "</body></html>";
+    let sourceHTML = header + "<h2 style='font-family: sans-serif; color: #1e3a8a;'>ANTIGRAVITY LIVE REPORTS</h2>";
+    
+    antigravityReports.forEach(report => {
+      sourceHTML += `
+        <div style="margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; font-family: monospace;">
+          <p><strong>Time:</strong> ${new Date(report.timestamp || report.receivedAt).toLocaleString()}</p>
+          <p><strong>Status:</strong> ${report.status}</p>
+          <p><strong>Summary:</strong> ${report.summary}</p>
+          <p><strong>Details:</strong><br/>${(report.details || '').replace(/\n/g, '<br/>')}</p>
+        </div>
+      `;
+    });
+    
+    sourceHTML += footer;
+    
+    const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
+    const fileDownload = document.createElement("a");
+    document.body.appendChild(fileDownload);
+    fileDownload.href = source;
+    fileDownload.download = 'Antigravity_Reports.doc';
+    fileDownload.click();
+    document.body.removeChild(fileDownload);
   };
 
   // Fungsi Ubah Status Goal (Toggle)
@@ -743,31 +801,41 @@ export default function Dashboard() {
                 <span className="text-[9px] font-mono text-blue-800/60 font-bold bg-slate-50 px-2 py-0.5 border border-blue-700/10">
                   AUTO-SYNC
                 </span>
+                <div className="flex gap-1 ml-auto">
+                  <button onClick={handleDownloadPDF} title="Download PDF" className="p-1 hover:bg-slate-100 text-blue-700 transition-colors border border-transparent hover:border-blue-700/20 rounded">
+                    <span className="text-[8px] font-bold">PDF</span>
+                  </button>
+                  <button onClick={handleDownloadDoc} title="Download Word (.doc)" className="p-1 hover:bg-slate-100 text-blue-700 transition-colors border border-transparent hover:border-blue-700/20 rounded">
+                    <span className="text-[8px] font-bold">DOC</span>
+                  </button>
+                </div>
               </div>
 
-              {antigravityReports.length > 0 ? (
-                <div className="space-y-4 max-h-[300px] overflow-y-auto">
-                  {antigravityReports.map((report, idx) => (
-                    <div key={idx} className="space-y-2 border-b border-blue-700/10 pb-3 last:border-0 last:pb-0">
-                      <div className="flex justify-between items-center">
-                         <span className="text-[9px] font-mono font-bold text-emerald-700">{new Date(report.timestamp || report.receivedAt).toLocaleString()}</span>
-                         <span className="text-[9px] font-mono bg-blue-50 text-blue-700 px-1 border border-blue-700/20">{report.status}</span>
+              <div id="report-content" className="pt-2">
+                {antigravityReports.length > 0 ? (
+                  <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                    {antigravityReports.map((report, idx) => (
+                      <div key={idx} className="space-y-2 border-b border-blue-700/10 pb-3 last:border-0 last:pb-0">
+                        <div className="flex justify-between items-center">
+                           <span className="text-[9px] font-mono font-bold text-emerald-700">{new Date(report.timestamp || report.receivedAt).toLocaleString()}</span>
+                           <span className="text-[9px] font-mono bg-blue-50 text-blue-700 px-1 border border-blue-700/20">{report.status}</span>
+                        </div>
+                        <div className="p-2 border border-blue-700/10 bg-slate-50 text-[10px] font-mono text-blue-900">
+                          <strong>summary:</strong> {report.summary}
+                        </div>
+                        <div className="text-[10px] font-mono text-blue-950 space-y-1 whitespace-pre-wrap">
+                          {report.details}
+                        </div>
                       </div>
-                      <div className="p-2 border border-blue-700/10 bg-slate-50 text-[10px] font-mono text-blue-900">
-                        <strong>summary:</strong> {report.summary}
-                      </div>
-                      <div className="text-[10px] font-mono text-blue-950 space-y-1 whitespace-pre-wrap">
-                        {report.details}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6">
-                  <p className="text-blue-800/40 text-[9px] font-mono mb-3">BELUM ADA LAPORAN DARI ANTIGRAVITY.</p>
-                  <p className="text-blue-800/30 text-[8px] font-mono uppercase">Laporan akan masuk otomatis saat saya (Antigravity) selesai bekerja.</p>
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <p className="text-blue-800/40 text-[9px] font-mono mb-3">BELUM ADA LAPORAN DARI ANTIGRAVITY.</p>
+                    <p className="text-blue-800/30 text-[8px] font-mono uppercase">Laporan akan masuk otomatis saat saya (Antigravity) selesai bekerja.</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Agent Simulator */}
