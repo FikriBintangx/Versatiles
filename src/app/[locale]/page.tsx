@@ -1046,8 +1046,32 @@ export default function Dashboard() {
           }
         });
 
+        // Temporarily override getComputedStyle to prevent html2canvas crash on oklch/lab/lch/oklab colors
+        const originalGetComputedStyle = window.getComputedStyle;
+        window.getComputedStyle = function (element, pseudoElt) {
+          const style = originalGetComputedStyle(element, pseudoElt);
+          return new Proxy(style, {
+            get(target, prop) {
+              const val = Reflect.get(target, prop);
+              if (typeof val === 'string') {
+                if (val.includes('oklch') || val.includes('oklab') || val.includes('lch') || val.includes('lab')) {
+                  return val
+                    .replace(/oklch\([^)]+\)/g, 'rgb(241, 245, 249)')
+                    .replace(/oklab\([^)]+\)/g, 'rgb(241, 245, 249)')
+                    .replace(/lch\([^)]+\)/g, 'rgb(241, 245, 249)')
+                    .replace(/lab\([^)]+\)/g, 'rgb(241, 245, 249)');
+                }
+              }
+              return typeof val === 'function' ? val.bind(target) : val;
+            },
+          });
+        };
+
         const canvas = await html2canvasFn(el, { scale: 2 });
         
+        // Restore getComputedStyle
+        window.getComputedStyle = originalGetComputedStyle;
+
         // Restore styles
         el.style.backgroundColor = originalBg;
         el.style.color = originalColor;
