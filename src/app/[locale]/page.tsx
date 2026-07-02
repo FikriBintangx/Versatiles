@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams } from 'next/navigation';
+import { getDictionary, Locale } from '@/lib/dictionaries';
 import { supabase } from '@/lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart
@@ -670,6 +672,15 @@ function CommitHeatmap({
 // MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Dashboard() {
+  const params = useParams();
+  const locale = (params?.locale as Locale) || 'id';
+  const d = getDictionary(locale);
+
+  const toggleLanguage = () => {
+    const newLocale = locale === 'id' ? 'en' : 'id';
+    window.location.href = `/${newLocale}`;
+  };
+
   const [agents, setAgents]     = useState<Agent[]>([]);
   const [commits, setCommits]   = useState<Commit[]>([]);
   const [tasks, setTasks]       = useState<IssueTask[]>([]);
@@ -1219,10 +1230,10 @@ export default function Dashboard() {
         {/* ── Stats Bar ────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'TOTAL COMMITS', value: commits.length, icon: <GitCommit className="h-4 w-4" />, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-700/20' },
-            { label: 'AGENTS ACTIVE', value: `${workingAgents}/${agents.length}`, icon: <Zap className="h-4 w-4" />, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-600/20' },
-            { label: 'GOALS DONE', value: `${goals.filter(g => g.status === 'Achieved').length}/${goals.length}`, icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-violet-700', bg: 'bg-violet-50 border-violet-600/20' },
-            { label: 'LINES WRITTEN', value: `+${totalAdded}`, icon: <TrendingUp className="h-4 w-4" />, color: 'text-rose-700', bg: 'bg-rose-50 border-rose-600/20' },
+            { label: d.stats.total_agents, value: agents.length, icon: <Activity className="h-4 w-4" />, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-700/20' },
+            { label: d.stats.active_workload, value: goals.filter(g => g.status === 'In Progress').length, icon: <Activity className="h-4 w-4" />, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-600/20' },
+            { label: d.stats.goals_done, value: `${goals.filter(g => g.status === 'Achieved').length}/${goals.length}`, icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-violet-700', bg: 'bg-violet-50 border-violet-600/20' },
+            { label: d.stats.lines_written, value: `+${totalAdded}`, icon: <TrendingUp className="h-4 w-4" />, color: 'text-rose-700', bg: 'bg-rose-50 border-rose-600/20' },
           ].map(s => (
             <div key={s.label} className={`border p-4 flex items-center justify-between ${s.bg}`}>
               <div>
@@ -1238,7 +1249,7 @@ export default function Dashboard() {
         <div className="window-card min-h-[220px]" style={{ height: '340px' }}>
           <div className="window-header">
             <span className="font-mono text-[9px] font-bold text-blue-900 flex items-center gap-1.5">
-              <Activity className="h-3.5 w-3.5" /> CONTRIBUTION_HEATMAP.SYS
+              <Activity className="h-3.5 w-3.5" /> {d.heatmap.title}
             </span>
             <div className="window-dots">
               <span className="window-dot bg-amber-400" />
@@ -1260,7 +1271,7 @@ export default function Dashboard() {
         <div className="window-card min-h-[200px]" style={{ height: '320px' }}>
           <div className="window-header">
             <span className="font-mono text-[9px] font-bold text-blue-900 flex items-center gap-1.5">
-              <BarChart2 className="h-3.5 w-3.5" /> AI_AGENT_WORKLOAD.DLL
+              <BarChart2 className="h-3.5 w-3.5" /> {d.workload.title}
             </span>
             <div className="window-dots">
               <span className="window-dot bg-amber-400" />
@@ -1272,10 +1283,10 @@ export default function Dashboard() {
             <div className="flex flex-wrap justify-between items-center border-b border-blue-700/10 pb-3 gap-3">
               <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2">
                 <BarChart2 className="h-5 w-5 text-blue-700" />
-                AI AGENT WORKLOAD & PERFORMANCE
+                {d.workload.header}
               </h2>
               <div className="text-[9px] font-mono text-blue-800/60 uppercase">
-                Current Task Distribution
+                {d.workload.subtitle}
               </div>
             </div>
 
@@ -1330,9 +1341,9 @@ export default function Dashboard() {
                 <div>
                   <h2 className="font-serif italic text-lg font-extrabold text-blue-900 mb-1 flex items-center gap-2">
                     <Compass className="h-4 w-4 text-blue-700" />
-                    PILIH REPOSITORI AKTIF GITHUB
+                    {d.repo_picker.title}
                   </h2>
-                  <p className="text-[10px] text-blue-800/60 font-mono">KLIK REPO UNTUK MENJADIKANNYA SUMBER UTAMA DASHBOARD</p>
+                  <p className="text-[10px] text-blue-800/60 font-mono">{d.repo_picker.subtitle}</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2">
@@ -1340,7 +1351,7 @@ export default function Dashboard() {
                     type="text"
                     value={repoSearch}
                     onChange={(e) => setRepoSearch(e.target.value)}
-                    placeholder="🔍 CARI REPO..."
+                    placeholder={`🔍 ${d.repo_picker.search}`}
                     className="bg-white border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase w-full sm:w-48"
                   />
                   <div className="flex bg-white border border-blue-700/20">
@@ -1418,7 +1429,7 @@ export default function Dashboard() {
           <section className="border border-blue-700/40 p-6 bg-white space-y-4 resize overflow-auto">
             <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2 border-b border-blue-700/20 pb-3">
               <Folder className="h-5 w-5 text-blue-700" />
-              REPOSITORY EXPLORER: <span className="text-blue-600">{activeRepo.full_name}</span>
+              {d.explorer.title}: <span className="text-blue-600">{activeRepo.full_name}</span>
             </h2>
             {isFetchingDetails ? (
               <div className="font-mono text-blue-800 text-xs py-4 animate-pulse">MEMUAT DETAIL DARI GITHUB...</div>
@@ -1431,19 +1442,19 @@ export default function Dashboard() {
                     <span>{repoDetails.detail?.language || 'Unknown'}</span>
                   </div>
                   <div className="border border-blue-700/20">
-                    <div className="bg-blue-50 text-blue-900 font-bold p-2 text-[10px] border-b border-blue-700/20">ROOT DIRECTORY</div>
+                    <div className="bg-blue-50 text-blue-900 font-bold p-2 text-[10px] border-b border-blue-700/20">{d.explorer.root}</div>
                     <div className="max-h-60 overflow-y-auto bg-white p-2 space-y-1">
                       {repoDetails.contents.length > 0 ? repoDetails.contents.map((f, i) => (
-                        <div key={i} className="flex items-center gap-2 text-[10px] font-mono text-blue-900 p-1.5 hover:bg-slate-50">
+                        <div key={i} className="flex items-center gap-2 text-[10px] font-mono text-blue-905 p-1.5 hover:bg-slate-50">
                           {f.type === 'dir' ? <Folder className="h-3.5 w-3.5 text-blue-500" /> : <FileCode className="h-3.5 w-3.5 text-blue-700/60" />}
                           <span className="truncate">{f.name}</span>
                         </div>
-                      )) : <div className="text-center text-[9px] text-blue-800/50 p-4">KOSONG</div>}
+                      )) : <div className="text-center text-[9px] text-blue-800/50 p-4">{d.explorer.empty}</div>}
                     </div>
                   </div>
                 </div>
                 <div className="border border-blue-700/20 flex flex-col">
-                  <div className="bg-blue-50 text-blue-900 font-bold p-2 text-[10px] border-b border-blue-700/20">RECENT GITHUB COMMITS</div>
+                  <div className="bg-blue-50 text-blue-900 font-bold p-2 text-[10px] border-b border-blue-700/20">{d.explorer.commits}</div>
                   <div className="max-h-[304px] overflow-y-auto bg-white p-3 space-y-3">
                     {repoDetails.commits.length > 0 ? repoDetails.commits.map((c, i) => (
                       <div key={i} className="border-b border-blue-700/10 pb-2 last:border-0">
@@ -1454,7 +1465,7 @@ export default function Dashboard() {
                         <p className="text-[10px] font-mono text-blue-950/80">{c.message}</p>
                         <a href={c.html_url} target="_blank" rel="noreferrer" className="text-[9px] font-bold text-blue-600 hover:underline">SHA: {c.sha?.substring(0, 7)}</a>
                       </div>
-                    )) : <div className="text-center text-[9px] text-blue-800/50 p-4">TIDAK ADA COMMIT</div>}
+                    )) : <div className="text-center text-[9px] text-blue-800/50 p-4">{d.explorer.no_commits}</div>}
                   </div>
                 </div>
               </div>
@@ -1839,10 +1850,10 @@ export default function Dashboard() {
               <div className="space-y-6 animate-slide-in">
                 <h2 className="font-serif italic text-lg font-black text-slate-800 border-b-2 border-slate-300 pb-2 flex items-center gap-2">
                   <Play className="h-4 w-4 text-slate-600" />
-                  SIMULATE AGENT COMMIT
+                  {d.simulator.title}
                 </h2>
                 <div className="border border-slate-200 p-5 bg-white space-y-4 rounded-lg shadow-sm">
-                  <span className="font-bold text-slate-750 block text-xs">SIMULATE AGENT COMMIT</span>
+                  <span className="font-bold text-slate-750 block text-xs">{d.simulator.title}</span>
                   <form onSubmit={handleSimulate} className="space-y-3">
                     <div className="flex gap-2">
                       <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}
@@ -1854,14 +1865,14 @@ export default function Dashboard() {
                         className="w-12 bg-slate-50 border border-slate-200 p-2 text-center text-slate-800 focus:outline-none text-[10px] rounded" required
                       />
                     </div>
-                    <input type="text" value={simMessage} onChange={e => setSimMessage(e.target.value)} placeholder="COMMIT MESSAGE"
+                    <input type="text" value={simMessage} onChange={e => setSimMessage(e.target.value)} placeholder={d.simulator.placeholder_msg}
                       className="w-full bg-slate-50 border border-slate-200 p-2 text-slate-800 focus:outline-none text-[10px] rounded" required
                     />
                     <button type="submit" disabled={isSimulating}
                       className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-650 text-white font-mono font-bold py-2 rounded transition-all text-[10px] flex items-center justify-center gap-2"
                     >
                       <Play className="h-3 w-3" />
-                      {isSimulating ? 'SIMULATING...' : 'SIMULATE COMMIT'}
+                      {isSimulating ? d.simulator.simulating : d.simulator.button}
                     </button>
                   </form>
                   {simStatus && (
@@ -1875,7 +1886,7 @@ export default function Dashboard() {
               <div className="space-y-6 animate-slide-in h-full flex flex-col">
                 <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-neutral-850 pb-2 flex items-center gap-2">
                   <Terminal className="h-4 w-4 text-emerald-400" />
-                  SYSTEM CONSOLE TERMINAL
+                  {d.terminal.title}
                 </h2>
                 <div className="flex-1 min-h-[360px] h-full rounded-lg overflow-hidden shadow-inner border border-neutral-800">
                   <InteractiveTerminal 
