@@ -1001,19 +1001,62 @@ export default function Dashboard() {
 
   const handleDownloadPDF = async () => {
     try {
-      const { jsPDF } = await import('jspdf');
-      const html2canvas = (await import('html2canvas')).default;
+      const jspdfModule = await import('jspdf');
+      const jsPDFClass = jspdfModule.jsPDF || jspdfModule.default;
+      if (!jsPDFClass) throw new Error("jsPDF constructor not found in module");
+
+      const html2canvasModule = await import('html2canvas');
+      const html2canvasFn = html2canvasModule.default || html2canvasModule;
+      if (!html2canvasFn) throw new Error("html2canvas function not found in module");
+
       const el = document.getElementById('report-content');
       if (el) {
-        el.style.backgroundColor = '#ffffff'; el.style.padding = '20px';
-        const canvas = await html2canvas(el, { scale: 2 });
-        el.style.backgroundColor = ''; el.style.padding = '';
+        // Temporarily set light colors so the PDF output is readable (dark text on white)
+        const originalBg = el.style.backgroundColor;
+        const originalColor = el.style.color;
+        const originalPadding = el.style.padding;
+        
+        el.style.backgroundColor = '#ffffff';
+        el.style.color = '#000000';
+        el.style.padding = '20px';
+        
+        // Also force children font colors to be dark so they print correctly on white canvas
+        const childNodes = el.querySelectorAll('*');
+        const originalChildStyles = Array.from(childNodes).map((c: any) => ({
+          el: c,
+          color: c.style.color,
+          backgroundColor: c.style.backgroundColor
+        }));
+        
+        childNodes.forEach((c: any) => {
+          c.style.color = '#1e293b'; // dark slate
+          if (c.classList.contains('bg-slate-900') || c.classList.contains('bg-slate-800') || c.classList.contains('bg-slate-50')) {
+            c.style.backgroundColor = '#f1f5f9'; // light gray instead of dark
+          }
+        });
+
+        const canvas = await html2canvasFn(el, { scale: 2 });
+        
+        // Restore styles
+        el.style.backgroundColor = originalBg;
+        el.style.color = originalColor;
+        el.style.padding = originalPadding;
+        originalChildStyles.forEach(item => {
+          item.el.style.color = item.color;
+          item.el.style.backgroundColor = item.backgroundColor;
+        });
+
         const img = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        pdf.addImage(img, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), (canvas.height * pdf.internal.pageSize.getWidth()) / canvas.width);
+        const pdf = new jsPDFClass('p', 'mm', 'a4');
+        const width = pdf.internal.pageSize.getWidth();
+        const height = (canvas.height * width) / canvas.width;
+        pdf.addImage(img, 'PNG', 0, 0, width, height);
         pdf.save('Antigravity_Reports.pdf');
       }
-    } catch { alert('Gagal PDF. Pastikan jspdf & html2canvas terinstall.'); }
+    } catch (err: any) {
+      console.error(err);
+      alert('Gagal PDF. Error: ' + err.message);
+    }
   };
 
   const handleDownloadDoc = () => {
