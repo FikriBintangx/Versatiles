@@ -739,6 +739,7 @@ export default function Dashboard() {
   const [chartMode, setChartMode]   = useState<'commits' | 'lines'>('commits');
   const [timeRange, setTimeRange]   = useState<TimeRange>('7d');
   const allCommitsRef               = useRef<Commit[]>([]);
+  const [activeTab, setActiveTab] = useState<'agents' | 'timeline' | 'goals' | 'vault' | 'reports' | 'simulator' | 'terminal'>('terminal');
 
   // Notifications
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -1419,392 +1420,465 @@ export default function Dashboard() {
         )}
 
         {/* ── Dashboard Grid ── */}
-        <ResponsiveGridLayout
-          className="layout"
-          layouts={{
-            lg: [
-              { i: 'agents', x: 0, y: 0, w: 4, h: 5 },
-              { i: 'timeline', x: 4, y: 0, w: 4, h: 5 },
-              { i: 'goals', x: 8, y: 0, w: 4, h: 3 },
-              { i: 'vault', x: 8, y: 3, w: 4, h: 3 },
-              { i: 'reports', x: 8, y: 6, w: 4, h: 3 },
-              { i: 'simulator', x: 8, y: 9, w: 4, h: 2 },
-              { i: 'terminal', x: 0, y: 5, w: 8, h: 3 }
-            ]
-          }}
-          breakpoints={{lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0}}
-          cols={{lg: 12, md: 10, sm: 6, xs: 4, xxs: 2}}
-          rowHeight={100}
-          draggableHandle=".drag-handle"
-        >
-
-          {/* Kolom Kiri: Agents */}
-          <div key="agents" className="space-y-6">
-            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-blue-700" />
-              AI AGENTS STATUS
-            </h2>
-            <div className="space-y-4">
-              {agents.map(agent => (
-                <div key={agent.id} className="border border-blue-700/40 p-4 bg-white hover:border-blue-700 transition-all flex flex-col justify-between h-36 resize overflow-auto">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-blue-900 text-sm tracking-wide">{agent.name}</h3>
-                      <span className="text-[10px] text-blue-800/50 uppercase tracking-widest">{agent.role} Agent</span>
-                    </div>
-                    <span className={`px-2 py-0.5 border text-[9px] font-bold ${
-                      agent.status === 'Working'        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 animate-pulse' :
-                      agent.status === 'Waiting Review' ? 'border-amber-600 bg-amber-50 text-amber-700' :
-                                                          'border-blue-700/20 bg-slate-100 text-blue-800/60'
-                    }`}>{agent.status}</span>
-                  </div>
-                  <div className="pt-3 border-t border-blue-700/10 flex justify-between items-center text-[10px] text-blue-800/60">
-                    <div>
-                      <span className="text-[9px] opacity-50 uppercase font-mono block">LAST ACTIVITY</span>
-                      <span className="font-bold text-blue-900 truncate max-w-[200px] block">
-                        {commits.find(c => c.author_name === agent.name)?.message || 'NO COMMITS YET'}
-                      </span>
-                    </div>
-                    <span className="font-mono text-[9px]">
-                      {new Date(agent.last_active).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                </div>
-              ))}
+        {/* ── Dashboard Window & Dock ── */}
+        <div className="border border-slate-700/60 bg-slate-900 rounded-xl overflow-hidden shadow-2xl flex flex-col min-h-[520px] transition-all duration-300 relative mb-8">
+          {/* Header Window Mac-style */}
+          <div className="bg-slate-950 px-4 py-3.5 border-b border-slate-800 flex justify-between items-center select-none">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                {activeTab === 'agents' && <Activity className="h-3.5 w-3.5 text-blue-400" />}
+                {activeTab === 'timeline' && <GitCommit className="h-3.5 w-3.5 text-blue-400" />}
+                {activeTab === 'goals' && <Sparkles className="h-3.5 w-3.5 text-blue-400" />}
+                {activeTab === 'vault' && <Key className="h-3.5 w-3.5 text-blue-400" />}
+                {activeTab === 'reports' && <FileText className="h-3.5 w-3.5 text-blue-400" />}
+                {activeTab === 'simulator' && <Play className="h-3.5 w-3.5 text-blue-400" />}
+                {activeTab === 'terminal' && <Terminal className="h-3.5 w-3.5 text-blue-400" />}
+                {activeTab.toUpperCase()}_SYS
+              </span>
+            </div>
+            {/* macOS Window dots */}
+            <div className="flex gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-rose-500 border border-rose-600/30 cursor-pointer" />
+              <span className="w-3 h-3 rounded-full bg-amber-400 border border-amber-500/30 cursor-pointer" />
+              <span className="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-600/30 cursor-pointer" />
             </div>
           </div>
 
-          {/* Kolom Tengah: Timeline */}
-          <div key="timeline" className="space-y-6">
-            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
-              <GitCommit className="h-4 w-4 text-blue-700" />
-              ACTIVITY TIMELINE
-            </h2>
-            <div className="border border-blue-700/40 p-6 bg-white space-y-6 h-[460px] overflow-y-auto resize">
-              {commits.length === 0 ? (
-                <div className="text-center py-20 text-blue-800/40 font-mono">BELUM ADA AKTIVITAS</div>
-              ) : (
-                <div className="relative border-l-2 border-blue-700/20 pl-4 space-y-6">
-                  {commits.slice(0, 15).map(commit => (
-                    <div key={commit.id} className="relative">
-                      <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-blue-700 border border-blue-800" />
-                      <div className="flex justify-between items-center text-[10px]">
-                        <span className="font-bold text-blue-850">{commit.author_name}</span>
-                        <span className="font-mono text-blue-800/50">
-                          {new Date(commit.commit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+          {/* Content Area */}
+          <div className="flex-1 p-6 bg-slate-900 text-slate-100 overflow-y-auto" style={{ minHeight: '400px' }}>
+            {activeTab === 'agents' && (
+              <div className="space-y-6 animate-slide-in">
+                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-blue-400" />
+                  AI AGENTS STATUS
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {agents.map(agent => (
+                    <div key={agent.id} className="border border-slate-700/60 p-4 bg-slate-800 hover:border-blue-500 transition-all flex flex-col justify-between h-36">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-slate-200 text-sm tracking-wide">{agent.name}</h3>
+                          <span className="text-[10px] text-slate-400 uppercase tracking-widest">{agent.role} Agent</span>
+                        </div>
+                        <span className={`px-2 py-0.5 border text-[9px] font-bold ${
+                          agent.status === 'Working'        ? 'border-emerald-600 bg-emerald-950/50 text-emerald-400 animate-pulse' :
+                          agent.status === 'Waiting Review' ? 'border-amber-600 bg-amber-950/50 text-amber-400' :
+                                                              'border-slate-700 bg-slate-900 text-slate-400'
+                        }`}>{agent.status}</span>
                       </div>
-                      <p className="text-[11px] font-mono text-blue-900/80 bg-blue-50/50 p-2 border border-blue-700/10 mt-1 uppercase">
-                        {commit.message}
-                      </p>
-                      <div className="flex items-center gap-3 mt-1.5 text-[9px] text-blue-800/40 font-mono">
-                        <span className="text-emerald-700 font-bold">+{commit.added_lines}</span>
-                        <span className="text-rose-700 font-bold">-{commit.deleted_lines}</span>
-                        <span>{commit.branch}</span>
-                        <span>{commit.sha?.substring(0, 7)}</span>
+                      <div className="pt-3 border-t border-slate-700/60 flex justify-between items-center text-[10px] text-slate-400">
+                        <div>
+                          <span className="text-[9px] opacity-50 uppercase font-mono block">LAST ACTIVITY</span>
+                          <span className="font-bold text-slate-200 truncate max-w-[200px] block">
+                            {commits.find(c => c.author_name === agent.name)?.message || 'NO COMMITS YET'}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[9px]">
+                          {new Date(agent.last_active).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          </div>
-          {/* Kolom Kanan: Goals + Reports + Simulator */}
-          <div key="goals" className="space-y-4">
-            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-blue-700" />
-              AI INSIGHT &amp; GOALS
-            </h2>
-
-            {/* ── Goals with Priority ─────────────────────────────────── */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
-              <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
-                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
-                  <Target className="h-4 w-4 text-blue-700" />
-                  PROJECT GOALS
-                </span>
-                <span className="font-mono text-[9px] bg-blue-50 text-blue-700 border border-blue-700/30 px-1.5 py-0.5 font-bold">
-                  {goals.filter(g => g.status === 'Achieved').length}/{goals.length} DONE
-                </span>
               </div>
+            )}
 
-              {/* Priority filter pills */}
-              <div className="flex gap-1.5">
-                {(['High', 'Medium', 'Low'] as const).map(p => {
-                  const cfg = PRIORITY_CONFIG[p];
-                  const cnt = goals.filter(g => (g.priority || 'Medium') === p).length;
-                  return (
-                    <span key={p} className={`flex items-center gap-1 px-2 py-0.5 border text-[8px] font-bold font-mono ${cfg.bg} ${cfg.border} ${cfg.color}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-                      {p} ({cnt})
+            {activeTab === 'timeline' && (
+              <div className="space-y-6 animate-slide-in">
+                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
+                  <GitCommit className="h-4 w-4 text-blue-400" />
+                  ACTIVITY TIMELINE
+                </h2>
+                <div className="border border-slate-700/60 p-6 bg-slate-800 space-y-6 max-h-[500px] overflow-y-auto">
+                  {commits.length === 0 ? (
+                    <div className="text-center py-20 text-slate-500 font-mono">BELUM ADA AKTIVITAS</div>
+                  ) : (
+                    <div className="relative border-l-2 border-slate-700 pl-4 space-y-6">
+                      {commits.slice(0, 15).map(commit => (
+                        <div key={commit.id} className="relative">
+                          <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-blue-500 border border-blue-600" />
+                          <div className="flex justify-between items-center text-[10px] text-slate-400">
+                            <span className="font-bold text-slate-300">{commit.author_name}</span>
+                            <span className="font-mono">
+                              {new Date(commit.commit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-[11px] font-mono text-slate-200 bg-slate-900/60 p-2 border border-slate-700/60 mt-1 uppercase">
+                            {commit.message}
+                          </p>
+                          <div className="flex items-center gap-3 mt-1.5 text-[9px] text-slate-500 font-mono">
+                            <span className="text-emerald-400 font-bold">+{commit.added_lines}</span>
+                            <span className="text-rose-400 font-bold">-{commit.deleted_lines}</span>
+                            <span>{commit.branch}</span>
+                            <span>{commit.sha?.substring(0, 7)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'goals' && (
+              <div className="space-y-6 animate-slide-in">
+                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-blue-400" />
+                  AI INSIGHT &amp; GOALS
+                </h2>
+                <div className="border border-slate-700/60 p-5 bg-slate-800 space-y-4">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-700/60">
+                    <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                      <Target className="h-4 w-4 text-blue-400" />
+                      PROJECT GOALS
                     </span>
-                  );
-                })}
-              </div>
+                    <span className="font-mono text-[9px] bg-slate-900 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 font-bold">
+                      {goals.filter(g => g.status === 'Achieved').length}/{goals.length} DONE
+                    </span>
+                  </div>
 
-              {/* Goal list */}
-              <div className="space-y-2 pr-1 h-[250px]">
-                {goals.length === 0 ? (
-                  <p className="text-blue-800/40 text-[9px] font-mono text-center py-4">BELUM ADA GOAL.</p>
-                ) : (
-                  <KanbanBoard goals={goals} onStatusChange={toggleGoalStatus} />
-                )}
-              </div>
+                  {/* Priority filter pills */}
+                  <div className="flex gap-1.5">
+                    {(['High', 'Medium', 'Low'] as const).map(p => {
+                      const cfg = PRIORITY_CONFIG[p];
+                      const cnt = goals.filter(g => (g.priority || 'Medium') === p).length;
+                      return (
+                        <span key={p} className={`flex items-center gap-1 px-2 py-0.5 border text-[8px] font-bold font-mono ${cfg.bg} ${cfg.border} ${cfg.color}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                          {p} ({cnt})
+                        </span>
+                      );
+                    })}
+                  </div>
 
-              {/* Form Tambah Goal with Priority */}
-              <form onSubmit={handleAddGoal} className="pt-3 border-t border-blue-700/10 space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text" value={newGoalTitle} onChange={e => setNewGoalTitle(e.target.value)}
-                    placeholder="TARGET / GOAL"
-                    className="flex-1 bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
-                    required
-                  />
-                  <select value={assignedAgent} onChange={e => setAssignedAgent(e.target.value)}
-                    className="w-28 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
-                  >
-                    <option value="UI Agent">UI AGENT</option>
-                    <option value="Backend Agent">BACKEND AGENT</option>
-                    <option value="Testing Agent">TESTING AGENT</option>
-                    <option value="DevOps Agent">DEVOPS AGENT</option>
-                  </select>
-                </div>
-                <input type="text" value={newGoalDesc} onChange={e => setNewGoalDesc(e.target.value)}
-                  placeholder="DESKRIPSI (OPSIONAL)"
-                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
-                />
-                {/* Priority selector */}
-                <div className="flex gap-1.5">
-                  {(['High', 'Medium', 'Low'] as const).map(p => {
-                    const cfg = PRIORITY_CONFIG[p];
-                    return (
-                      <button key={p} type="button" onClick={() => setNewGoalPriority(p)}
-                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 border text-[8px] font-bold font-mono transition-all ${
-                          newGoalPriority === p ? `${cfg.bg} ${cfg.border} ${cfg.color}` : 'border-blue-700/20 text-blue-700/50 hover:bg-slate-50'
-                        }`}
+                  {/* Goal list */}
+                  <div className="space-y-2 pr-1 max-h-[300px] overflow-y-auto">
+                    {goals.length === 0 ? (
+                      <p className="text-slate-500 text-[9px] font-mono text-center py-4">BELUM ADA GOAL.</p>
+                    ) : (
+                      <KanbanBoard goals={goals} onStatusChange={toggleGoalStatus} />
+                    )}
+                  </div>
+
+                  {/* Form Tambah Goal with Priority */}
+                  <form onSubmit={handleAddGoal} className="pt-3 border-t border-slate-700/60 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text" value={newGoalTitle} onChange={e => setNewGoalTitle(e.target.value)}
+                        placeholder="TARGET / GOAL"
+                        className="flex-1 bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[10px] font-mono uppercase"
+                        required
+                      />
+                      <select value={assignedAgent} onChange={e => setAssignedAgent(e.target.value)}
+                        className="w-28 bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
                       >
-                        <Flag className="h-2.5 w-2.5" />{p}
-                      </button>
-                    );
-                  })}
+                        <option value="UI Agent">UI AGENT</option>
+                        <option value="Backend Agent">BACKEND AGENT</option>
+                        <option value="Testing Agent">TESTING AGENT</option>
+                        <option value="DevOps Agent">DEVOPS AGENT</option>
+                      </select>
+                    </div>
+                    <input type="text" value={newGoalDesc} onChange={e => setNewGoalDesc(e.target.value)}
+                      placeholder="DESKRIPSI (OPSIONAL)"
+                      className="w-full bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[10px] font-mono uppercase"
+                    />
+                    {/* Priority selector */}
+                    <div className="flex gap-1.5">
+                      {(['High', 'Medium', 'Low'] as const).map(p => {
+                        const cfg = PRIORITY_CONFIG[p];
+                        return (
+                          <button key={p} type="button" onClick={() => setNewGoalPriority(p)}
+                            className={`flex-1 flex items-center justify-center gap-1 py-1.5 border text-[8px] font-bold font-mono transition-all ${
+                              newGoalPriority === p ? `${cfg.bg} ${cfg.border} ${cfg.color}` : 'border-slate-700 text-slate-400 hover:bg-slate-900'
+                            }`}
+                          >
+                            <Flag className="h-2.5 w-2.5" />{p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <textarea value={newGoalPrompt} onChange={e => setNewGoalPrompt(e.target.value)}
+                      placeholder="AI INSTRUCTION / PROMPT (E.G. BUAT FILE NAVBAR.TSX DI SRC/COMPONENTS)"
+                      className="w-full bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[9px] font-mono uppercase h-14"
+                    />
+                    <button type="submit" disabled={isAddingGoal}
+                      className="w-full bg-blue-700 hover:bg-blue-600 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      {isAddingGoal ? 'ASSIGNING...' : '+ ASSIGN TASK TO AGENT'}
+                    </button>
+                  </form>
                 </div>
-                <textarea value={newGoalPrompt} onChange={e => setNewGoalPrompt(e.target.value)}
-                  placeholder="AI INSTRUCTION / PROMPT (E.G. BUAT FILE NAVBAR.TSX DI SRC/COMPONENTS)"
-                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[9px] font-mono uppercase h-14"
-                />
-                <button type="submit" disabled={isAddingGoal}
-                  className="w-full bg-blue-700 hover:bg-blue-600 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
-                >
-                  <Plus className="h-3 w-3" />
-                  {isAddingGoal ? 'ASSIGNING...' : '+ ASSIGN TASK TO AGENT'}
-                </button>
-              </form>
-            </div>
+              </div>
+            )}
 
-          </div>
-          <div key="vault" className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
-              <div className="drag-handle cursor-move flex justify-between items-center pb-2 border-b border-blue-700/10">
-                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
-                  <Key className="h-4 w-4 text-blue-700" />
+            {activeTab === 'vault' && (
+              <div className="space-y-6 animate-slide-in">
+                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
+                  <Key className="h-4 w-4 text-blue-400" />
                   PASSWORD SAFE VAULT
-                </span>
-                <span className="text-[8px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 border border-emerald-600/20">SECURED</span>
-              </div>
+                </h2>
+                <div className="border border-slate-700/60 p-5 bg-slate-800 space-y-4">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-700/60">
+                    <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                      <Key className="h-4 w-4 text-blue-400" />
+                      PASSWORD SAFE VAULT
+                    </span>
+                    <span className="text-[8px] font-mono text-emerald-400 font-bold bg-emerald-950/40 px-2 py-0.5 border border-emerald-600/30">SECURED</span>
+                  </div>
 
-              {/* Password Search */}
-              <input
-                type="text"
-                value={passSearch}
-                onChange={e => setPassSearch(e.target.value)}
-                placeholder="CARI PASSWORD..."
-                className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[9px] font-mono uppercase"
-              />
-
-              {/* Password List */}
-              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                {passwords.filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase()))).length === 0 ? (
-                  <p className="text-center text-blue-800/40 font-mono text-[9px] py-4">BELUM ADA PASSWORD TERSIMPAN</p>
-                ) : (
-                  passwords
-                    .filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase())))
-                    .map(p => (
-                      <div key={p.id} className="p-2 border border-blue-700/10 bg-slate-50 space-y-1">
-                        <div className="flex justify-between items-start">
-                          <span className="font-bold text-[10px] text-blue-900 truncate max-w-[120px]">{p.title}</span>
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => togglePasswordVisibility(p.id)} className="p-0.5 hover:bg-slate-200 text-blue-700 rounded transition-colors" title="Show/Hide">
-                              {visiblePasswords[p.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                            </button>
-                            <button onClick={() => copyToClipboard(p.password_val, 'Password')} className="p-0.5 hover:bg-slate-200 text-blue-700 rounded transition-colors" title="Copy Password">
-                              <Copy className="h-3 w-3" />
-                            </button>
-                            <button onClick={() => handleDeletePassword(p.id, p.title)} className="p-0.5 hover:bg-slate-200 text-rose-600 rounded transition-colors" title="Delete">
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {p.username && (
-                          <div className="flex items-center justify-between text-[9px] font-mono text-blue-800/60">
-                            <span>User: {p.username}</span>
-                            <button onClick={() => copyToClipboard(p.username, 'Username')} className="text-blue-700 hover:underline">Copy</button>
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between text-[9px] font-mono text-blue-950 bg-white border border-blue-700/5 px-1 py-0.5">
-                          <span className="font-bold truncate max-w-[150px]">
-                            {visiblePasswords[p.id] ? p.password_val : '••••••••••••'}
-                          </span>
-                        </div>
-
-                        {p.website_url && (
-                          <a href={p.website_url} target="_blank" rel="noopener noreferrer" className="text-[8px] font-mono text-blue-600 hover:underline block truncate">
-                            {p.website_url}
-                          </a>
-                        )}
-                        {p.notes && (
-                          <p className="text-[8px] font-mono text-blue-800/40 italic break-words">{p.notes}</p>
-                        )}
-                      </div>
-                    ))
-                )}
-              </div>
-
-              {/* Add New Password Form */}
-              <form onSubmit={handleAddPassword} className="pt-3 border-t border-blue-700/10 space-y-2">
-                <span className="text-[9px] font-mono font-bold text-blue-900 block uppercase">TAMBAH PASSWORD BARU</span>
-                <input
-                  type="text"
-                  value={newPassTitle}
-                  onChange={e => setNewPassTitle(e.target.value)}
-                  placeholder="NAMA AKUN / APP (E.G. GITHUB, GMAIL)"
-                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono uppercase"
-                  required
-                />
-                <div className="flex gap-1.5">
+                  {/* Password Search */}
                   <input
                     type="text"
-                    value={newPassUser}
-                    onChange={e => setNewPassUser(e.target.value)}
-                    placeholder="USERNAME / EMAIL"
-                    className="flex-1 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                    value={passSearch}
+                    onChange={e => setPassSearch(e.target.value)}
+                    placeholder="CARI PASSWORD..."
+                    className="w-full bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[9px] font-mono uppercase"
                   />
-                  <input
-                    type="text"
-                    value={newPassVal}
-                    onChange={e => setNewPassVal(e.target.value)}
-                    placeholder="PASSWORD"
-                    className="flex-1 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
-                    required
-                  />
+
+                  {/* Password List */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                    {passwords.filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase()))).length === 0 ? (
+                      <p className="col-span-full text-center text-slate-500 font-mono text-[9px] py-4">BELUM ADA PASSWORD TERSIMPAN</p>
+                    ) : (
+                      passwords
+                        .filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase())))
+                        .map(p => (
+                          <div key={p.id} className="p-3 border border-slate-700 bg-slate-900 space-y-1">
+                            <div className="flex justify-between items-start">
+                              <span className="font-bold text-[10px] text-slate-200 truncate max-w-[120px]">{p.title}</span>
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => togglePasswordVisibility(p.id)} className="p-0.5 hover:bg-slate-800 text-slate-400 rounded transition-colors" title="Show/Hide">
+                                  {visiblePasswords[p.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                </button>
+                                <button onClick={() => copyToClipboard(p.password_val, 'Password')} className="p-0.5 hover:bg-slate-800 text-slate-400 rounded transition-colors" title="Copy Password">
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                                <button onClick={() => handleDeletePassword(p.id, p.title)} className="p-0.5 hover:bg-slate-800 text-rose-400 rounded transition-colors" title="Delete">
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {p.username && (
+                              <div className="flex items-center justify-between text-[9px] font-mono text-slate-400">
+                                <span>User: {p.username}</span>
+                                <button onClick={() => copyToClipboard(p.username, 'Username')} className="text-blue-400 hover:underline">Copy</button>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between text-[9px] font-mono text-slate-200 bg-slate-950 border border-slate-800 px-1.5 py-1">
+                              <span className="font-bold truncate max-w-[150px]">
+                                {visiblePasswords[p.id] ? p.password_val : '••••••••••••'}
+                              </span>
+                            </div>
+
+                            {p.website_url && (
+                              <a href={p.website_url} target="_blank" rel="noopener noreferrer" className="text-[8px] font-mono text-blue-400 hover:underline block truncate">
+                                {p.website_url}
+                              </a>
+                            )}
+                            {p.notes && (
+                              <p className="text-[8px] font-mono text-slate-500 italic break-words">{p.notes}</p>
+                            )}
+                          </div>
+                        ))
+                    )}
+                  </div>
+
+                  {/* Add New Password Form */}
+                  <form onSubmit={handleAddPassword} className="pt-3 border-t border-slate-700/60 space-y-2">
+                    <span className="text-[9px] font-mono font-bold text-slate-300 block uppercase">TAMBAH PASSWORD BARU</span>
+                    <input
+                      type="text"
+                      value={newPassTitle}
+                      onChange={e => setNewPassTitle(e.target.value)}
+                      placeholder="NAMA AKUN / APP (E.G. GITHUB, GMAIL)"
+                      className="w-full bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono uppercase"
+                      required
+                    />
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={newPassUser}
+                        onChange={e => setNewPassUser(e.target.value)}
+                        placeholder="USERNAME / EMAIL"
+                        className="flex-1 bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                      />
+                      <input
+                        type="text"
+                        value={newPassVal}
+                        onChange={e => setNewPassVal(e.target.value)}
+                        placeholder="PASSWORD"
+                        className="flex-1 bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                        required
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={newPassUrl}
+                      onChange={e => setNewPassUrl(e.target.value)}
+                      placeholder="URL WEBSITE (OPSIONAL)"
+                      className="w-full bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                    />
+                    <input
+                      type="text"
+                      value={newPassNotes}
+                      onChange={e => setNewPassNotes(e.target.value)}
+                      placeholder="CATATAN / NOTES"
+                      className="w-full bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSavingPassword}
+                      className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      {isSavingPassword ? 'SAVING...' : 'SAVE PASSWORD'}
+                    </button>
+                  </form>
                 </div>
-                <input
-                  type="text"
-                  value={newPassUrl}
-                  onChange={e => setNewPassUrl(e.target.value)}
-                  placeholder="URL WEBSITE (OPSIONAL)"
-                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
-                />
-                <input
-                  type="text"
-                  value={newPassNotes}
-                  onChange={e => setNewPassNotes(e.target.value)}
-                  placeholder="CATATAN / NOTES"
-                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
-                />
-                <button
-                  type="submit"
-                  disabled={isSavingPassword}
-                  className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
-                >
-                  <Plus className="h-3 w-3" />
-                  {isSavingPassword ? 'SAVING...' : 'SAVE PASSWORD'}
-                </button>
-              </form>
-          </div>
-          <div key="reports" className="border border-blue-700/40 p-5 bg-white space-y-3 resize overflow-auto">
-              <div className="drag-handle cursor-move flex justify-between items-center pb-2 border-b border-blue-700/10">
-                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-blue-700" />
+              </div>
+            )}
+
+            {activeTab === 'reports' && (
+              <div className="space-y-6 animate-slide-in">
+                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-400" />
                   ANTIGRAVITY LIVE REPORTS
-                </span>
-                <span className="text-[9px] font-mono text-blue-800/60 font-bold bg-slate-50 px-2 py-0.5 border border-blue-700/10">AUTO-SYNC</span>
-                <div className="flex gap-1 ml-auto">
-                  <button onClick={handleDownloadPDF} className="p-1 hover:bg-slate-100 text-blue-700 transition-colors border border-transparent hover:border-blue-700/20 rounded">
-                    <span className="text-[8px] font-bold">PDF</span>
-                  </button>
-                  <button onClick={handleDownloadDoc} className="p-1 hover:bg-slate-100 text-blue-700 transition-colors border border-transparent hover:border-blue-700/20 rounded">
-                    <span className="text-[8px] font-bold">DOC</span>
-                  </button>
+                </h2>
+                <div className="border border-slate-700/60 p-5 bg-slate-800 space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-700/60">
+                    <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                      <FileText className="h-4 w-4 text-blue-400" />
+                      ANTIGRAVITY LIVE REPORTS
+                    </span>
+                    <span className="text-[9px] font-mono text-slate-400 font-bold bg-slate-900 px-2 py-0.5 border border-slate-700">AUTO-SYNC</span>
+                    <div className="flex gap-1 ml-auto">
+                      <button onClick={handleDownloadPDF} className="p-1 hover:bg-slate-750 text-blue-400 transition-colors border border-transparent hover:border-slate-700 rounded">
+                        <span className="text-[8px] font-bold">PDF</span>
+                      </button>
+                      <button onClick={handleDownloadDoc} className="p-1 hover:bg-slate-750 text-blue-400 transition-colors border border-transparent hover:border-slate-700 rounded">
+                        <span className="text-[8px] font-bold">DOC</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div id="report-content" className="pt-2">
+                    {antigravityReports.length > 0 ? (
+                      <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                        {antigravityReports.map((r, i) => (
+                          <div key={i} className="space-y-2 border-b border-slate-700 pb-3 last:border-0">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[9px] font-mono font-bold text-emerald-400">{new Date(r.timestamp || r.receivedAt).toLocaleString()}</span>
+                              <span className="text-[9px] font-mono bg-slate-900 text-blue-400 px-1 border border-slate-700">{r.status}</span>
+                            </div>
+                            <div className="p-2 border border-slate-700 bg-slate-900 text-[10px] font-mono text-slate-300">
+                              <strong>summary:</strong> {r.summary}
+                            </div>
+                            <div className="text-[10px] font-mono text-slate-300 whitespace-pre-wrap">{r.details}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <p className="text-slate-500 text-[9px] font-mono">BELUM ADA LAPORAN DARI ANTIGRAVITY.</p>
+                        <p className="text-slate-600 text-[8px] font-mono uppercase mt-1">Laporan masuk otomatis saat saya selesai bekerja.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div id="report-content" className="pt-2">
-                {antigravityReports.length > 0 ? (
-                  <div className="space-y-4 max-h-[280px] overflow-y-auto pr-2">
-                    {antigravityReports.map((r, i) => (
-                      <div key={i} className="space-y-2 border-b border-blue-700/10 pb-3 last:border-0">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[9px] font-mono font-bold text-emerald-700">{new Date(r.timestamp || r.receivedAt).toLocaleString()}</span>
-                          <span className="text-[9px] font-mono bg-blue-50 text-blue-700 px-1 border border-blue-700/20">{r.status}</span>
-                        </div>
-                        <div className="p-2 border border-blue-700/10 bg-slate-50 text-[10px] font-mono text-blue-900">
-                          <strong>summary:</strong> {r.summary}
-                        </div>
-                        <div className="text-[10px] font-mono text-blue-950 whitespace-pre-wrap">{r.details}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-6">
-                    <p className="text-blue-800/40 text-[9px] font-mono">BELUM ADA LAPORAN DARI ANTIGRAVITY.</p>
-                    <p className="text-blue-800/30 text-[8px] font-mono uppercase mt-1">Laporan masuk otomatis saat saya selesai bekerja.</p>
-                  </div>
-                )}
+            )}
+
+            {activeTab === 'simulator' && (
+              <div className="space-y-6 animate-slide-in">
+                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
+                  <Play className="h-4 w-4 text-blue-400" />
+                  SIMULATE AGENT COMMIT
+                </h2>
+                <div className="border border-slate-700/60 p-5 bg-slate-800 space-y-4">
+                  <span className="font-bold text-slate-200 block text-xs">SIMULATE AGENT COMMIT</span>
+                  <form onSubmit={handleSimulate} className="space-y-3">
+                    <div className="flex gap-2">
+                      <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[10px]"
+                      >
+                        <option>UI Agent</option><option>Backend Agent</option><option>Testing Agent</option><option>DevOps Agent</option>
+                      </select>
+                      <input type="number" value={filesCount} onChange={e => setFilesCount(Number(e.target.value))} min="1" max="10"
+                        className="w-12 bg-slate-900 border border-slate-700/60 p-2 text-center text-slate-200 focus:outline-none text-[10px]" required
+                      />
+                    </div>
+                    <input type="text" value={simMessage} onChange={e => setSimMessage(e.target.value)} placeholder="COMMIT MESSAGE"
+                      className="w-full bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[10px]" required
+                    />
+                    <button type="submit" disabled={isSimulating}
+                      className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-2 border border-blue-800 transition-all text-[10px] flex items-center justify-center gap-2"
+                    >
+                      <Play className="h-3 w-3" />
+                      {isSimulating ? 'SIMULATING...' : 'SIMULATE COMMIT'}
+                    </button>
+                  </form>
+                  {simStatus && (
+                    <div className="p-2 border border-slate-700 bg-slate-900 font-mono text-[9px] text-slate-350">{simStatus}</div>
+                  )}
+                </div>
               </div>
-          </div>
-          <div key="simulator" className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
-              <span className="drag-handle cursor-move font-bold text-blue-900 block text-xs">SIMULATE AGENT COMMIT</span>
-              <form onSubmit={handleSimulate} className="space-y-3">
-                <div className="flex gap-2">
-                  <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}
-                    className="flex-1 bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px]"
-                  >
-                    <option>UI Agent</option><option>Backend Agent</option><option>Testing Agent</option><option>DevOps Agent</option>
-                  </select>
-                  <input type="number" value={filesCount} onChange={e => setFilesCount(Number(e.target.value))} min="1" max="10"
-                    className="w-12 bg-slate-50 border border-blue-700/20 p-2 text-center text-blue-950 focus:outline-none text-[10px]" required
+            )}
+
+            {activeTab === 'terminal' && (
+              <div className="space-y-6 animate-slide-in h-full flex flex-col">
+                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
+                  <Terminal className="h-4 w-4 text-blue-400" />
+                  SYSTEM CONSOLE TERMINAL
+                </h2>
+                <div className="flex-1 min-h-[360px] h-full">
+                  <InteractiveTerminal 
+                    agents={agents} 
+                    onCommand={async (cmd) => {
+                      const res = await fetch('/api/terminal', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command: cmd })
+                      });
+                      const data = await res.json();
+                      return data.output || data.error || 'No output from command.';
+                    }} 
                   />
                 </div>
-                <input type="text" value={simMessage} onChange={e => setSimMessage(e.target.value)} placeholder="COMMIT MESSAGE"
-                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px]" required
-                />
-                <button type="submit" disabled={isSimulating}
-                  className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-2 border border-blue-800 transition-all text-[10px] flex items-center justify-center gap-2"
-                >
-                  <Play className="h-3 w-3" />
-                  {isSimulating ? 'SIMULATING...' : 'SIMULATE COMMIT'}
-                </button>
-              </form>
-              {simStatus && (
-                <div className="p-2 border border-blue-700/20 bg-slate-50 font-mono text-[9px] text-blue-950">{simStatus}</div>
-              )}
-            </div>
-            
-          <div key="terminal">
-            <InteractiveTerminal 
-              agents={agents} 
-              onCommand={async (cmd) => {
-                const res = await fetch('/api/terminal', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ command: cmd })
-                });
-                const data = await res.json();
-                return data.output || data.error || 'No output from command.';
-              }} 
-            />
+              </div>
+            )}
           </div>
-        </ResponsiveGridLayout>
+        </div>
+
+        {/* macOS Dock Switcher at the bottom */}
+        <div className="flex justify-center pb-12">
+          <div className="flex items-center gap-2 bg-slate-950/80 backdrop-blur-md px-5 py-3.5 rounded-2xl border border-slate-800 shadow-2xl transition-all">
+            {[
+              { id: 'agents', label: 'Agents', icon: <Activity className="h-5 w-5" /> },
+              { id: 'timeline', label: 'Timeline', icon: <GitCommit className="h-5 w-5" /> },
+              { id: 'goals', label: 'Goals', icon: <Sparkles className="h-5 w-5" /> },
+              { id: 'vault', label: 'Vault', icon: <Key className="h-5 w-5" /> },
+              { id: 'reports', label: 'Reports', icon: <FileText className="h-5 w-5" /> },
+              { id: 'simulator', label: 'Simulator', icon: <Play className="h-5 w-5" /> },
+              { id: 'terminal', label: 'Terminal', icon: <Terminal className="h-5 w-5" /> },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl transition-all duration-300 transform hover:-translate-y-2.5 hover:scale-110 ${
+                  activeTab === tab.id
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/35 border border-blue-500/50'
+                    : 'bg-slate-850 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-800/40'
+                }`}
+                title={tab.label}
+              >
+                {tab.icon}
+                <span className="text-[8px] font-mono mt-1 font-bold tracking-tight">{tab.label.toUpperCase()}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Footer */}
         <footer className="border-t-2 border-blue-700 pt-4 flex justify-between items-center text-blue-700/60 font-mono text-[9px]">
