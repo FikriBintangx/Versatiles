@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
 
 :root {
   --background: #f8fafc;
@@ -16,3 +18,4 @@ body {
     radial-gradient(at 100% 0%, rgba(29, 78, 216, 0.12) 0, transparent 50%);
   background-attachment: fixed;
 }
+
