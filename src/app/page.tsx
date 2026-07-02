@@ -14,14 +14,11 @@ import { supabase } from '@/lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart
 } from 'recharts';
-import { ResponsiveGridLayout, Layout } from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { 
-  Play, 
+import { RefreshCw, Play, 
   GitCommit, 
   Activity, 
   Server, 
@@ -29,7 +26,7 @@ import {
   Layers, 
   CheckSquare, 
   Radio, 
-  RefreshCw, 
+  
   Sparkles,
   Heart,
   AlertCircle,
@@ -116,7 +113,7 @@ interface AppNotification {
 }
 
 // ─── Interactive Terminal Component ────────────────────────────────────────────
-function InteractiveTerminal({ agents, onCommand, isEditMode }: { agents: Record<string, unknown>[], onCommand: (cmd: string) => Promise<string>, isEditMode?: boolean }) {
+function InteractiveTerminal({ agents, onCommand}: { agents: Record<string, unknown>[], onCommand: (cmd: string) => Promise<string> }) {
   const [history, setHistory] = useState<{ type: 'input' | 'output', text: string }[]>([
     { type: 'output', text: 'ANTIGRAVITY TERMINAL v1.0.0 INITIALIZED.' },
     { type: 'output', text: 'Type "help" for available commands.' }
@@ -154,9 +151,9 @@ function InteractiveTerminal({ agents, onCommand, isEditMode }: { agents: Record
 
   return (
     <div className="border border-blue-700/40 bg-blue-950 text-blue-300 font-mono text-[10px] h-full flex flex-col overflow-hidden">
-      <div className={`bg-blue-900/50 p-2 border-b border-blue-700/40 font-bold tracking-widest text-blue-200 flex justify-between items-center ${isEditMode ? 'drag-handle cursor-move' : ''}`}>
+      <div className={`bg-blue-900/50 p-2 border-b border-blue-700/40 font-bold tracking-widest text-blue-200 flex justify-between items-center `}>
         <span>{">_ SYSTEM_CONSOLE"}</span>
-        {isEditMode && <span className="text-[8px] bg-blue-700 text-white px-1">DRAG</span>}
+        
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-1">
         {history.map((line, i) => (
@@ -680,26 +677,7 @@ function CommitHeatmap({
 // MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Dashboard() {
-  const [isEditMode, setIsEditMode] = useState(false);
-  const defaultLayout = [
-    { i: 'agents', x: 0, y: 0, w: 4, h: 5 },
-    { i: 'timeline', x: 4, y: 0, w: 4, h: 5 },
-    { i: 'goals', x: 8, y: 0, w: 4, h: 4 },
-    { i: 'vault', x: 8, y: 4, w: 4, h: 3 },
-    { i: 'reports', x: 8, y: 7, w: 4, h: 3 },
-    { i: 'simulator', x: 8, y: 10, w: 4, h: 2 },
-    { i: 'terminal', x: 0, y: 5, w: 8, h: 3 }
-  ];
-  const [layoutsState, setLayoutsState] = useState<Record<string, unknown>>({ lg: defaultLayout });
   
-  const handleRandomizeLayout = () => {
-    const newLayout = defaultLayout.map(item => ({
-      ...item,
-      x: Math.floor(Math.random() * (12 - item.w + 1)),
-      y: Math.floor(Math.random() * 20)
-    }));
-    setLayoutsState({ lg: newLayout });
-  };
 
   const [agents, setAgents]     = useState<Agent[]>([]);
   const [commits, setCommits]   = useState<Commit[]>([]);
@@ -1124,21 +1102,7 @@ export default function Dashboard() {
           </div>
           <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80 flex items-center justify-between gap-2">
             <span>[ STATUS: <span className="text-emerald-600 font-bold">ACTIVE</span> ]</span>
-            <div className="flex gap-2">
-              <button 
-                onClick={handleRandomizeLayout}
-                className="px-2 py-1 font-bold border transition-colors bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 flex items-center gap-1"
-                title="Randomize Layout"
-              >
-                <RefreshCw className="h-3 w-3" /> RANDOM LAYOUT
-              </button>
-              <button 
-                onClick={() => setIsEditMode(!isEditMode)}
-                className={`px-2 py-1 font-bold border transition-colors ${isEditMode ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}
-              >
-                {isEditMode ? 'EDIT MODE: ON' : 'LIVE VIEW'}
-              </button>
-            </div>
+            
           </div>
           <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80">
             REPO: {activeRepo ? activeRepo.name : 'NONE'}
@@ -1467,21 +1431,13 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
         )}
 
         {/* ── Dashboard Grid ── */}
-        <ResponsiveGridLayout
-          className="layout"
-          layouts={layoutsState}
-          onLayoutChange={(currentLayout, allLayouts) => setLayoutsState(allLayouts)}
-          breakpoints={{lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0}}
-          cols={{lg: 12, md: 10, sm: 6, xs: 4, xxs: 2}}
-          rowHeight={100}
-          draggableHandle=".drag-handle"
-          isDraggable={isEditMode}
-          isResizable={isEditMode}
-        >
-
-          {/* Kolom Kiri: Agents */}
-          <div key="agents" className="flex flex-col h-full overflow-hidden">
-            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 ${isEditMode ? 'drag-handle cursor-move' : ''}`}>
+        <PanelGroup direction="vertical">
+          <Panel defaultSize={75} minSize={40}>
+            <PanelGroup direction="horizontal">
+              <Panel defaultSize={25} minSize={15}>
+                {/* Agents */}
+                <div key="agents" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 `}>
               <Activity className="h-4 w-4 text-blue-700" />
               AI AGENTS STATUS
             </h2>
@@ -1514,10 +1470,12 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
               ))}
             </div>
           </div>
-
-          {/* Kolom Tengah: Timeline */}
-          <div key="timeline" className="flex flex-col h-full overflow-hidden">
-            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 ${isEditMode ? 'drag-handle cursor-move' : ''}`}>
+              </Panel>
+              <PanelResizeHandle className="w-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-col-resize transition-colors" />
+              <Panel defaultSize={45} minSize={20}>
+                {/* Timeline */}
+                <div key="timeline" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 `}>
               <GitCommit className="h-4 w-4 text-blue-700" />
               ACTIVITY TIMELINE
             </h2>
@@ -1550,9 +1508,14 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
               )}
             </div>
           </div>
-          {/* Kolom Kanan: Goals + Reports + Simulator */}
-          <div key="goals" className="flex flex-col h-full overflow-hidden">
-            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 ${isEditMode ? 'drag-handle cursor-move' : ''}`}>
+              </Panel>
+              <PanelResizeHandle className="w-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-col-resize transition-colors" />
+              <Panel defaultSize={30} minSize={20}>
+                {/* Right Column */}
+                <PanelGroup direction="vertical">
+                  <Panel defaultSize={40} minSize={20}>
+                    <div key="goals" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 `}>
               <Sparkles className="h-4 w-4 text-blue-700" />
               AI INSIGHT &amp; GOALS
             </h2>
@@ -1643,8 +1606,11 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
             </div>
 
           </div>
-          <div key="vault" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
-              <div className={`${isEditMode ? 'drag-handle cursor-move' : ''} flex justify-between items-center pb-2 border-b border-blue-700/10 mb-4`}>
+                  </Panel>
+                  <PanelResizeHandle className="h-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-row-resize transition-colors" />
+                  <Panel defaultSize={20} minSize={15}>
+                    <div key="vault" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <div className={` flex justify-between items-center pb-2 border-b border-blue-700/10 mb-4`}>
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <Key className="h-4 w-4 text-blue-700" />
                   PASSWORD SAFE VAULT
@@ -1763,8 +1729,11 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
                 </button>
               </form>
           </div>
-          <div key="reports" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
-              <div className={`${isEditMode ? 'drag-handle cursor-move' : ''} flex justify-between items-center pb-2 border-b border-blue-700/10 mb-2`}>
+                  </Panel>
+                  <PanelResizeHandle className="h-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-row-resize transition-colors" />
+                  <Panel defaultSize={25} minSize={15}>
+                    <div key="reports" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <div className={` flex justify-between items-center pb-2 border-b border-blue-700/10 mb-2`}>
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-blue-700" />
                   ANTIGRAVITY LIVE REPORTS
@@ -1803,8 +1772,11 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
                 )}
               </div>
           </div>
-          <div key="simulator" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
-              <span className={`${isEditMode ? 'drag-handle cursor-move' : ''} font-bold text-blue-900 block text-xs mb-4`}>SIMULATE AGENT COMMIT</span>
+                  </Panel>
+                  <PanelResizeHandle className="h-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-row-resize transition-colors" />
+                  <Panel defaultSize={15} minSize={10}>
+                    <div key="simulator" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <span className={` font-bold text-blue-900 block text-xs mb-4`}>SIMULATE AGENT COMMIT</span>
               <form onSubmit={handleSimulate} className="flex-1 flex flex-col justify-between space-y-3">
                 <div className="flex gap-2">
                   <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}
@@ -1830,10 +1802,17 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
                 <div className="p-2 border border-blue-700/20 bg-slate-50 font-mono text-[9px] text-blue-950">{simStatus}</div>
               )}
             </div>
-            
-          <div key="terminal" className="flex flex-col h-full overflow-hidden">
+                  </Panel>
+                </PanelGroup>
+              </Panel>
+            </PanelGroup>
+          </Panel>
+          <PanelResizeHandle className="h-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-row-resize transition-colors" />
+          <Panel defaultSize={25} minSize={10}>
+            {/* Terminal */}
+            <div key="terminal" className="flex flex-col h-full overflow-hidden">
             <InteractiveTerminal 
-              isEditMode={isEditMode}
+              
               agents={agents} 
               onCommand={async (cmd) => {
                 const res = await fetch('/api/terminal', {
@@ -1846,7 +1825,8 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
               }} 
             />
           </div>
-        </ResponsiveGridLayout>
+          </Panel>
+        </PanelGroup>
 
         {/* Footer */}
         <footer className="border-t-2 border-blue-700 pt-4 flex justify-between items-center text-blue-700/60 font-mono text-[9px]">
