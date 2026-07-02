@@ -107,7 +107,7 @@ interface Notification {
 }
 
 // ─── Interactive Terminal Component ────────────────────────────────────────────
-function InteractiveTerminal({ agents, onCommand }: { agents: any[], onCommand: (cmd: string) => Promise<string> }) {
+function InteractiveTerminal({ agents, onCommand, isEditMode }: { agents: any[], onCommand: (cmd: string) => Promise<string>, isEditMode?: boolean }) {
   const [history, setHistory] = useState<{ type: 'input' | 'output', text: string }[]>([
     { type: 'output', text: 'ANTIGRAVITY TERMINAL v1.0.0 INITIALIZED.' },
     { type: 'output', text: 'Type "help" for available commands.' }
@@ -144,9 +144,10 @@ function InteractiveTerminal({ agents, onCommand }: { agents: any[], onCommand: 
   };
 
   return (
-    <div className="border border-blue-700/40 bg-blue-950 text-blue-300 font-mono text-[10px] h-full flex flex-col h-[300px]">
-      <div className="bg-blue-900/50 p-2 border-b border-blue-700/40 font-bold tracking-widest text-blue-200">
-        {">_ SYSTEM_CONSOLE"}
+    <div className="border border-blue-700/40 bg-blue-950 text-blue-300 font-mono text-[10px] h-full flex flex-col overflow-hidden">
+      <div className={`bg-blue-900/50 p-2 border-b border-blue-700/40 font-bold tracking-widest text-blue-200 flex justify-between items-center ${isEditMode ? 'drag-handle cursor-move' : ''}`}>
+        <span>{">_ SYSTEM_CONSOLE"}</span>
+        {isEditMode && <span className="text-[8px] bg-blue-700 text-white px-1">DRAG</span>}
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-1">
         {history.map((line, i) => (
@@ -198,7 +199,7 @@ function KanbanBoard({ goals, onStatusChange }: { goals: any[], onStatusChange: 
 
   return (
     <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="grid grid-cols-2 gap-4 h-[250px]">
+      <div className="grid grid-cols-2 gap-4 h-full min-h-[150px]">
         {/* In Progress Column */}
         <div className="bg-blue-50/50 p-2 border border-blue-700/20 flex flex-col">
           <div className="font-bold text-blue-900 text-[10px] mb-2 border-b border-blue-700/10 pb-1">IN PROGRESS ({inProgress.length})</div>
@@ -670,6 +671,27 @@ function CommitHeatmap({
 // MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Dashboard() {
+  const [isEditMode, setIsEditMode] = useState(false);
+  const defaultLayout = [
+    { i: 'agents', x: 0, y: 0, w: 4, h: 5 },
+    { i: 'timeline', x: 4, y: 0, w: 4, h: 5 },
+    { i: 'goals', x: 8, y: 0, w: 4, h: 4 },
+    { i: 'vault', x: 8, y: 4, w: 4, h: 3 },
+    { i: 'reports', x: 8, y: 7, w: 4, h: 3 },
+    { i: 'simulator', x: 8, y: 10, w: 4, h: 2 },
+    { i: 'terminal', x: 0, y: 5, w: 8, h: 3 }
+  ];
+  const [layoutState, setLayoutState] = useState<any[]>(defaultLayout);
+  
+  const handleRandomizeLayout = () => {
+    const newLayout = layoutState.map(item => ({
+      ...item,
+      x: Math.floor(Math.random() * (12 - item.w + 1)),
+      y: Math.floor(Math.random() * 20)
+    }));
+    setLayoutState(newLayout);
+  };
+
   const [agents, setAgents]     = useState<Agent[]>([]);
   const [commits, setCommits]   = useState<Commit[]>([]);
   const [tasks, setTasks]       = useState<IssueTask[]>([]);
@@ -1091,8 +1113,23 @@ export default function Dashboard() {
           <div className="p-4 border-r border-blue-700 font-serif italic text-2xl font-black tracking-normal text-blue-800">
             ORCHESTRATOR
           </div>
-          <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80">
-            [ STATUS: <span className="text-emerald-600 font-bold">ACTIVE</span> ]
+          <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80 flex items-center justify-between gap-2">
+            <span>[ STATUS: <span className="text-emerald-600 font-bold">ACTIVE</span> ]</span>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleRandomizeLayout}
+                className="px-2 py-1 font-bold border transition-colors bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 flex items-center gap-1"
+                title="Randomize Layout"
+              >
+                <RefreshCw className="h-3 w-3" /> RANDOM LAYOUT
+              </button>
+              <button 
+                onClick={() => setIsEditMode(!isEditMode)}
+                className={`px-2 py-1 font-bold border transition-colors ${isEditMode ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}
+              >
+                {isEditMode ? 'EDIT MODE: ON' : 'LIVE VIEW'}
+              </button>
+            </div>
           </div>
           <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80">
             REPO: {activeRepo ? activeRepo.name : 'NONE'}
@@ -1421,32 +1458,25 @@ export default function Dashboard() {
         {/* ── Dashboard Grid ── */}
         <ResponsiveGridLayout
           className="layout"
-          layouts={{
-            lg: [
-              { i: 'agents', x: 0, y: 0, w: 4, h: 5 },
-              { i: 'timeline', x: 4, y: 0, w: 4, h: 5 },
-              { i: 'goals', x: 8, y: 0, w: 4, h: 3 },
-              { i: 'vault', x: 8, y: 3, w: 4, h: 3 },
-              { i: 'reports', x: 8, y: 6, w: 4, h: 3 },
-              { i: 'simulator', x: 8, y: 9, w: 4, h: 2 },
-              { i: 'terminal', x: 0, y: 5, w: 8, h: 3 }
-            ]
-          }}
+          layouts={{ lg: layoutState }}
+          onLayoutChange={(newLayout) => setLayoutState(newLayout)}
           breakpoints={{lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0}}
           cols={{lg: 12, md: 10, sm: 6, xs: 4, xxs: 2}}
           rowHeight={100}
           draggableHandle=".drag-handle"
+          isDraggable={isEditMode}
+          isResizable={isEditMode}
         >
 
           {/* Kolom Kiri: Agents */}
-          <div key="agents" className="space-y-6">
-            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+          <div key="agents" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 ${isEditMode ? 'drag-handle cursor-move' : ''}`}>
               <Activity className="h-4 w-4 text-blue-700" />
               AI AGENTS STATUS
             </h2>
-            <div className="space-y-4">
+            <div className="flex-1 overflow-y-auto space-y-4 pt-4 pr-2">
               {agents.map(agent => (
-                <div key={agent.id} className="border border-blue-700/40 p-4 bg-white hover:border-blue-700 transition-all flex flex-col justify-between h-36 resize overflow-auto">
+                <div key={agent.id} className="border border-blue-700/40 p-4 bg-white hover:border-blue-700 transition-all flex flex-col justify-between h-36">
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-bold text-blue-900 text-sm tracking-wide">{agent.name}</h3>
@@ -1475,12 +1505,12 @@ export default function Dashboard() {
           </div>
 
           {/* Kolom Tengah: Timeline */}
-          <div key="timeline" className="space-y-6">
-            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+          <div key="timeline" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 ${isEditMode ? 'drag-handle cursor-move' : ''}`}>
               <GitCommit className="h-4 w-4 text-blue-700" />
               ACTIVITY TIMELINE
             </h2>
-            <div className="border border-blue-700/40 p-6 bg-white space-y-6 h-[460px] overflow-y-auto resize">
+            <div className="border border-blue-700/40 p-6 bg-white flex-1 overflow-y-auto mt-4 space-y-6">
               {commits.length === 0 ? (
                 <div className="text-center py-20 text-blue-800/40 font-mono">BELUM ADA AKTIVITAS</div>
               ) : (
@@ -1510,14 +1540,14 @@ export default function Dashboard() {
             </div>
           </div>
           {/* Kolom Kanan: Goals + Reports + Simulator */}
-          <div key="goals" className="space-y-4">
-            <h2 className="drag-handle cursor-move font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2">
+          <div key="goals" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 ${isEditMode ? 'drag-handle cursor-move' : ''}`}>
               <Sparkles className="h-4 w-4 text-blue-700" />
               AI INSIGHT &amp; GOALS
             </h2>
 
             {/* ── Goals with Priority ─────────────────────────────────── */}
-            <div className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
+            <div className="border border-blue-700/40 p-5 bg-white flex-1 flex flex-col mt-4 overflow-hidden">
               <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <Target className="h-4 w-4 text-blue-700" />
@@ -1543,7 +1573,7 @@ export default function Dashboard() {
               </div>
 
               {/* Goal list */}
-              <div className="space-y-2 pr-1 h-[250px]">
+              <div className="flex-1 overflow-y-auto min-h-[150px] space-y-2 pr-1 mt-4">
                 {goals.length === 0 ? (
                   <p className="text-blue-800/40 text-[9px] font-mono text-center py-4">BELUM ADA GOAL.</p>
                 ) : (
@@ -1602,8 +1632,8 @@ export default function Dashboard() {
             </div>
 
           </div>
-          <div key="vault" className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
-              <div className="drag-handle cursor-move flex justify-between items-center pb-2 border-b border-blue-700/10">
+          <div key="vault" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <div className={`${isEditMode ? 'drag-handle cursor-move' : ''} flex justify-between items-center pb-2 border-b border-blue-700/10 mb-4`}>
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <Key className="h-4 w-4 text-blue-700" />
                   PASSWORD SAFE VAULT
@@ -1621,7 +1651,7 @@ export default function Dashboard() {
               />
 
               {/* Password List */}
-              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 mt-2">
                 {passwords.filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase()))).length === 0 ? (
                   <p className="text-center text-blue-800/40 font-mono text-[9px] py-4">BELUM ADA PASSWORD TERSIMPAN</p>
                 ) : (
@@ -1722,8 +1752,8 @@ export default function Dashboard() {
                 </button>
               </form>
           </div>
-          <div key="reports" className="border border-blue-700/40 p-5 bg-white space-y-3 resize overflow-auto">
-              <div className="drag-handle cursor-move flex justify-between items-center pb-2 border-b border-blue-700/10">
+          <div key="reports" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <div className={`${isEditMode ? 'drag-handle cursor-move' : ''} flex justify-between items-center pb-2 border-b border-blue-700/10 mb-2`}>
                 <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-blue-700" />
                   ANTIGRAVITY LIVE REPORTS
@@ -1738,9 +1768,9 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
-              <div id="report-content" className="pt-2">
+              <div id="report-content" className="flex-1 overflow-y-auto pr-2 mt-2">
                 {antigravityReports.length > 0 ? (
-                  <div className="space-y-4 max-h-[280px] overflow-y-auto pr-2">
+                  <div className="space-y-4">
                     {antigravityReports.map((r, i) => (
                       <div key={i} className="space-y-2 border-b border-blue-700/10 pb-3 last:border-0">
                         <div className="flex justify-between items-center">
@@ -1762,9 +1792,9 @@ export default function Dashboard() {
                 )}
               </div>
           </div>
-          <div key="simulator" className="border border-blue-700/40 p-5 bg-white space-y-4 resize overflow-auto">
-              <span className="drag-handle cursor-move font-bold text-blue-900 block text-xs">SIMULATE AGENT COMMIT</span>
-              <form onSubmit={handleSimulate} className="space-y-3">
+          <div key="simulator" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <span className={`${isEditMode ? 'drag-handle cursor-move' : ''} font-bold text-blue-900 block text-xs mb-4`}>SIMULATE AGENT COMMIT</span>
+              <form onSubmit={handleSimulate} className="flex-1 flex flex-col justify-between space-y-3">
                 <div className="flex gap-2">
                   <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}
                     className="flex-1 bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px]"
@@ -1790,8 +1820,9 @@ export default function Dashboard() {
               )}
             </div>
             
-          <div key="terminal">
+          <div key="terminal" className="flex flex-col h-full overflow-hidden">
             <InteractiveTerminal 
+              isEditMode={isEditMode}
               agents={agents} 
               onCommand={async (cmd) => {
                 const res = await fetch('/api/terminal', {
