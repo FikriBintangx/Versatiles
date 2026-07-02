@@ -1463,56 +1463,58 @@ export default function Dashboard() {
         )}
 
         {/* ── Dashboard Grid ── */}
-        {/* ── Dashboard Window & Dock ── */}
-        <div className="border border-slate-700/60 bg-slate-900 rounded-xl overflow-hidden shadow-2xl flex flex-col min-h-[520px] transition-all duration-300 relative mb-8">
-          {/* Header Window Mac-style */}
-          <div className="bg-slate-950 px-4 py-3.5 border-b border-slate-800 flex justify-between items-center select-none">
+        {/* ── Dashboard Window & Dock (Silver MacBook Bezel & Workspace Style) ── */}
+        <div className="border border-slate-300 bg-slate-100 rounded-xl overflow-hidden shadow-2xl flex flex-col min-h-[520px] transition-all duration-300 relative mb-8">
+          {/* Header Window Mac-style (Silver Aluminum Bezel) */}
+          <div className="bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 px-4 py-3.5 border-b border-slate-300 flex justify-between items-center select-none shadow-sm">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                {activeTab === 'agents' && <Activity className="h-3.5 w-3.5 text-blue-400" />}
-                {activeTab === 'timeline' && <GitCommit className="h-3.5 w-3.5 text-blue-400" />}
-                {activeTab === 'goals' && <Sparkles className="h-3.5 w-3.5 text-blue-400" />}
-                {activeTab === 'vault' && <Key className="h-3.5 w-3.5 text-blue-400" />}
-                {activeTab === 'reports' && <FileText className="h-3.5 w-3.5 text-blue-400" />}
-                {activeTab === 'simulator' && <Play className="h-3.5 w-3.5 text-blue-400" />}
-                {activeTab === 'terminal' && <Terminal className="h-3.5 w-3.5 text-blue-400" />}
+              <span className="font-mono text-[10px] font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                {activeTab === 'agents' && <Activity className="h-3.5 w-3.5 text-slate-500" />}
+                {activeTab === 'timeline' && <GitCommit className="h-3.5 w-3.5 text-slate-500" />}
+                {activeTab === 'goals' && <Sparkles className="h-3.5 w-3.5 text-slate-500" />}
+                {activeTab === 'vault' && <Key className="h-3.5 w-3.5 text-slate-500" />}
+                {activeTab === 'reports' && <FileText className="h-3.5 w-3.5 text-slate-500" />}
+                {activeTab === 'simulator' && <Play className="h-3.5 w-3.5 text-slate-500" />}
+                {activeTab === 'terminal' && <Terminal className="h-3.5 w-3.5 text-slate-500" />}
                 {activeTab.toUpperCase()}_SYS
               </span>
             </div>
-            {/* macOS Window dots */}
+            {/* macOS Window dots (Red, Yellow, Green) on the right */}
             <div className="flex gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-rose-500 border border-rose-600/30 cursor-pointer" />
-              <span className="w-3 h-3 rounded-full bg-amber-400 border border-amber-500/30 cursor-pointer" />
-              <span className="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-600/30 cursor-pointer" />
+              <span className="w-3 h-3 rounded-full bg-rose-500 border border-rose-600/20 cursor-pointer" />
+              <span className="w-3 h-3 rounded-full bg-amber-400 border border-amber-500/20 cursor-pointer" />
+              <span className="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-600/20 cursor-pointer" />
             </div>
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 p-6 bg-slate-900 text-slate-100 overflow-y-auto" style={{ minHeight: '400px' }}>
+          <div className={`flex-1 p-6 overflow-y-auto transition-colors duration-300 ${
+            activeTab === 'terminal' ? 'bg-neutral-950 text-slate-200' : 'bg-slate-50 text-slate-800'
+          }`} style={{ minHeight: '400px' }}>
             {activeTab === 'agents' && (
               <div className="space-y-6 animate-slide-in">
-                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-blue-400" />
+                <h2 className="font-serif italic text-lg font-black text-slate-800 border-b-2 border-slate-300 pb-2 flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-slate-600" />
                   AI AGENTS STATUS
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {agents.map(agent => (
-                    <div key={agent.id} className="border border-slate-700/60 p-4 bg-slate-800 hover:border-blue-500 transition-all flex flex-col justify-between h-36">
+                    <div key={agent.id} className="border border-slate-200 p-4 bg-white hover:border-slate-400 hover:shadow-md transition-all flex flex-col justify-between h-36 rounded-lg shadow-sm">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-bold text-slate-200 text-sm tracking-wide">{agent.name}</h3>
-                          <span className="text-[10px] text-slate-400 uppercase tracking-widest">{agent.role} Agent</span>
+                          <h3 className="font-bold text-slate-800 text-sm tracking-wide">{agent.name}</h3>
+                          <span className="text-[10px] text-slate-500 uppercase tracking-widest">{agent.role} Agent</span>
                         </div>
-                        <span className={`px-2 py-0.5 border text-[9px] font-bold ${
-                          agent.status === 'Working'        ? 'border-emerald-600 bg-emerald-950/50 text-emerald-400 animate-pulse' :
-                          agent.status === 'Waiting Review' ? 'border-amber-600 bg-amber-950/50 text-amber-400' :
-                                                              'border-slate-700 bg-slate-900 text-slate-400'
+                        <span className={`px-2 py-0.5 border text-[9px] font-bold rounded ${
+                          agent.status === 'Working'        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 animate-pulse' :
+                          agent.status === 'Waiting Review' ? 'border-amber-600 bg-amber-50 text-amber-700' :
+                                                              'border-slate-200 bg-slate-100 text-slate-500'
                         }`}>{agent.status}</span>
                       </div>
-                      <div className="pt-3 border-t border-slate-700/60 flex justify-between items-center text-[10px] text-slate-400">
+                      <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-500">
                         <div>
-                          <span className="text-[9px] opacity-50 uppercase font-mono block">LAST ACTIVITY</span>
-                          <span className="font-bold text-slate-200 truncate max-w-[200px] block">
+                          <span className="text-[9px] opacity-60 uppercase font-mono block">LAST ACTIVITY</span>
+                          <span className="font-bold text-slate-700 truncate max-w-[200px] block">
                             {commits.find(c => c.author_name === agent.name)?.message || 'NO COMMITS YET'}
                           </span>
                         </div>
@@ -1528,30 +1530,30 @@ export default function Dashboard() {
 
             {activeTab === 'timeline' && (
               <div className="space-y-6 animate-slide-in">
-                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
-                  <GitCommit className="h-4 w-4 text-blue-400" />
+                <h2 className="font-serif italic text-lg font-black text-slate-800 border-b-2 border-slate-300 pb-2 flex items-center gap-2">
+                  <GitCommit className="h-4 w-4 text-slate-600" />
                   ACTIVITY TIMELINE
                 </h2>
-                <div className="border border-slate-700/60 p-6 bg-slate-800 space-y-6 max-h-[500px] overflow-y-auto">
+                <div className="border border-slate-200 p-6 bg-white space-y-6 max-h-[500px] overflow-y-auto rounded-lg shadow-sm">
                   {commits.length === 0 ? (
-                    <div className="text-center py-20 text-slate-500 font-mono">BELUM ADA AKTIVITAS</div>
+                    <div className="text-center py-20 text-slate-400 font-mono">BELUM ADA AKTIVITAS</div>
                   ) : (
-                    <div className="relative border-l-2 border-slate-700 pl-4 space-y-6">
+                    <div className="relative border-l-2 border-slate-200 pl-4 space-y-6">
                       {commits.slice(0, 15).map(commit => (
                         <div key={commit.id} className="relative">
-                          <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-blue-500 border border-blue-600" />
-                          <div className="flex justify-between items-center text-[10px] text-slate-400">
-                            <span className="font-bold text-slate-300">{commit.author_name}</span>
+                          <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-slate-400 border border-slate-500" />
+                          <div className="flex justify-between items-center text-[10px] text-slate-500">
+                            <span className="font-bold text-slate-700">{commit.author_name}</span>
                             <span className="font-mono">
                               {new Date(commit.commit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <p className="text-[11px] font-mono text-slate-200 bg-slate-900/60 p-2 border border-slate-700/60 mt-1 uppercase">
+                          <p className="text-[11px] font-mono text-slate-800 bg-slate-50 p-2 border border-slate-200 mt-1 rounded uppercase">
                             {commit.message}
                           </p>
-                          <div className="flex items-center gap-3 mt-1.5 text-[9px] text-slate-500 font-mono">
-                            <span className="text-emerald-400 font-bold">+{commit.added_lines}</span>
-                            <span className="text-rose-400 font-bold">-{commit.deleted_lines}</span>
+                          <div className="flex items-center gap-3 mt-1.5 text-[9px] text-slate-400 font-mono">
+                            <span className="text-emerald-600 font-bold">+{commit.added_lines}</span>
+                            <span className="text-rose-600 font-bold">-{commit.deleted_lines}</span>
                             <span>{commit.branch}</span>
                             <span>{commit.sha?.substring(0, 7)}</span>
                           </div>
@@ -1565,17 +1567,17 @@ export default function Dashboard() {
 
             {activeTab === 'goals' && (
               <div className="space-y-6 animate-slide-in">
-                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-blue-400" />
+                <h2 className="font-serif italic text-lg font-black text-slate-800 border-b-2 border-slate-300 pb-2 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-slate-600" />
                   AI INSIGHT &amp; GOALS
                 </h2>
-                <div className="border border-slate-700/60 p-5 bg-slate-800 space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-700/60">
-                    <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                      <Target className="h-4 w-4 text-blue-400" />
+                <div className="border border-slate-200 p-5 bg-white space-y-4 rounded-lg shadow-sm">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Target className="h-4 w-4 text-slate-600" />
                       PROJECT GOALS
                     </span>
-                    <span className="font-mono text-[9px] bg-slate-900 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 font-bold">
+                    <span className="font-mono text-[9px] bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded font-bold">
                       {goals.filter(g => g.status === 'Achieved').length}/{goals.length} DONE
                     </span>
                   </div>
@@ -1586,7 +1588,7 @@ export default function Dashboard() {
                       const cfg = PRIORITY_CONFIG[p];
                       const cnt = goals.filter(g => (g.priority || 'Medium') === p).length;
                       return (
-                        <span key={p} className={`flex items-center gap-1 px-2 py-0.5 border text-[8px] font-bold font-mono ${cfg.bg} ${cfg.border} ${cfg.color}`}>
+                        <span key={p} className={`flex items-center gap-1 px-2 py-0.5 border text-[8px] font-bold font-mono rounded ${cfg.bg} ${cfg.border} ${cfg.color}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
                           {p} ({cnt})
                         </span>
@@ -1597,23 +1599,23 @@ export default function Dashboard() {
                   {/* Goal list */}
                   <div className="space-y-2 pr-1 max-h-[300px] overflow-y-auto">
                     {goals.length === 0 ? (
-                      <p className="text-slate-500 text-[9px] font-mono text-center py-4">BELUM ADA GOAL.</p>
+                      <p className="text-slate-400 text-[9px] font-mono text-center py-4">BELUM ADA GOAL.</p>
                     ) : (
                       <KanbanBoard goals={goals} onStatusChange={toggleGoalStatus} />
                     )}
                   </div>
 
                   {/* Form Tambah Goal with Priority */}
-                  <form onSubmit={handleAddGoal} className="pt-3 border-t border-slate-700/60 space-y-2">
+                  <form onSubmit={handleAddGoal} className="pt-3 border-t border-slate-100 space-y-2">
                     <div className="flex gap-2">
                       <input
                         type="text" value={newGoalTitle} onChange={e => setNewGoalTitle(e.target.value)}
                         placeholder="TARGET / GOAL"
-                        className="flex-1 bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[10px] font-mono uppercase"
+                        className="flex-1 bg-slate-50 border border-slate-200 p-2 text-slate-800 focus:outline-none text-[10px] font-mono rounded uppercase"
                         required
                       />
                       <select value={assignedAgent} onChange={e => setAssignedAgent(e.target.value)}
-                        className="w-28 bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                        className="w-28 bg-slate-50 border border-slate-200 p-1.5 text-slate-850 focus:outline-none text-[9px] font-mono rounded"
                       >
                         <option value="UI Agent">UI AGENT</option>
                         <option value="Backend Agent">BACKEND AGENT</option>
@@ -1623,7 +1625,7 @@ export default function Dashboard() {
                     </div>
                     <input type="text" value={newGoalDesc} onChange={e => setNewGoalDesc(e.target.value)}
                       placeholder="DESKRIPSI (OPSIONAL)"
-                      className="w-full bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[10px] font-mono uppercase"
+                      className="w-full bg-slate-50 border border-slate-200 p-2 text-slate-800 focus:outline-none text-[10px] font-mono rounded uppercase"
                     />
                     {/* Priority selector */}
                     <div className="flex gap-1.5">
@@ -1631,8 +1633,8 @@ export default function Dashboard() {
                         const cfg = PRIORITY_CONFIG[p];
                         return (
                           <button key={p} type="button" onClick={() => setNewGoalPriority(p)}
-                            className={`flex-1 flex items-center justify-center gap-1 py-1.5 border text-[8px] font-bold font-mono transition-all ${
-                              newGoalPriority === p ? `${cfg.bg} ${cfg.border} ${cfg.color}` : 'border-slate-700 text-slate-400 hover:bg-slate-900'
+                            className={`flex-1 flex items-center justify-center gap-1 py-1.5 border text-[8px] font-bold font-mono transition-all rounded ${
+                              newGoalPriority === p ? `${cfg.bg} ${cfg.border} ${cfg.color}` : 'border-slate-200 text-slate-400 hover:bg-slate-50'
                             }`}
                           >
                             <Flag className="h-2.5 w-2.5" />{p}
@@ -1642,10 +1644,10 @@ export default function Dashboard() {
                     </div>
                     <textarea value={newGoalPrompt} onChange={e => setNewGoalPrompt(e.target.value)}
                       placeholder="AI INSTRUCTION / PROMPT (E.G. BUAT FILE NAVBAR.TSX DI SRC/COMPONENTS)"
-                      className="w-full bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[9px] font-mono uppercase h-14"
+                      className="w-full bg-slate-50 border border-slate-200 p-2 text-slate-800 focus:outline-none text-[9px] font-mono rounded uppercase h-14"
                     />
                     <button type="submit" disabled={isAddingGoal}
-                      className="w-full bg-blue-700 hover:bg-blue-600 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
+                      className="w-full bg-slate-800 hover:bg-slate-700 text-white font-mono font-bold py-1.5 rounded transition-all text-[9px] flex items-center justify-center gap-1"
                     >
                       <Plus className="h-3 w-3" />
                       {isAddingGoal ? 'ASSIGNING...' : '+ ASSIGN TASK TO AGENT'}
@@ -1657,17 +1659,17 @@ export default function Dashboard() {
 
             {activeTab === 'vault' && (
               <div className="space-y-6 animate-slide-in">
-                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
-                  <Key className="h-4 w-4 text-blue-400" />
+                <h2 className="font-serif italic text-lg font-black text-slate-800 border-b-2 border-slate-300 pb-2 flex items-center gap-2">
+                  <Key className="h-4 w-4 text-slate-600" />
                   PASSWORD SAFE VAULT
                 </h2>
-                <div className="border border-slate-700/60 p-5 bg-slate-800 space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-700/60">
-                    <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                      <Key className="h-4 w-4 text-blue-400" />
+                <div className="border border-slate-200 p-5 bg-white space-y-4 rounded-lg shadow-sm">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Key className="h-4 w-4 text-slate-600" />
                       PASSWORD SAFE VAULT
                     </span>
-                    <span className="text-[8px] font-mono text-emerald-400 font-bold bg-emerald-950/40 px-2 py-0.5 border border-emerald-600/30">SECURED</span>
+                    <span className="text-[8px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 border border-emerald-200 rounded">SECURED</span>
                   </div>
 
                   {/* Password Search */}
@@ -1676,53 +1678,53 @@ export default function Dashboard() {
                     value={passSearch}
                     onChange={e => setPassSearch(e.target.value)}
                     placeholder="CARI PASSWORD..."
-                    className="w-full bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[9px] font-mono uppercase"
+                    className="w-full bg-slate-50 border border-slate-200 p-2 text-slate-800 focus:outline-none text-[9px] font-mono rounded uppercase"
                   />
 
                   {/* Password List */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
                     {passwords.filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase()))).length === 0 ? (
-                      <p className="col-span-full text-center text-slate-500 font-mono text-[9px] py-4">BELUM ADA PASSWORD TERSIMPAN</p>
+                      <p className="col-span-full text-center text-slate-400 font-mono text-[9px] py-4">BELUM ADA PASSWORD TERSIMPAN</p>
                     ) : (
                       passwords
                         .filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase())))
                         .map(p => (
-                          <div key={p.id} className="p-3 border border-slate-700 bg-slate-900 space-y-1">
+                          <div key={p.id} className="p-3 border border-slate-200 bg-slate-50 space-y-1 rounded-lg">
                             <div className="flex justify-between items-start">
-                              <span className="font-bold text-[10px] text-slate-200 truncate max-w-[120px]">{p.title}</span>
+                              <span className="font-bold text-[10px] text-slate-800 truncate max-w-[120px]">{p.title}</span>
                               <div className="flex items-center gap-1">
-                                <button onClick={() => togglePasswordVisibility(p.id)} className="p-0.5 hover:bg-slate-800 text-slate-400 rounded transition-colors" title="Show/Hide">
+                                <button onClick={() => togglePasswordVisibility(p.id)} className="p-0.5 hover:bg-slate-250 text-slate-500 rounded transition-colors" title="Show/Hide">
                                   {visiblePasswords[p.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                                 </button>
-                                <button onClick={() => copyToClipboard(p.password_val, 'Password')} className="p-0.5 hover:bg-slate-800 text-slate-400 rounded transition-colors" title="Copy Password">
+                                <button onClick={() => copyToClipboard(p.password_val, 'Password')} className="p-0.5 hover:bg-slate-250 text-slate-500 rounded transition-colors" title="Copy Password">
                                   <Copy className="h-3 w-3" />
                                 </button>
-                                <button onClick={() => handleDeletePassword(p.id, p.title)} className="p-0.5 hover:bg-slate-800 text-rose-400 rounded transition-colors" title="Delete">
+                                <button onClick={() => handleDeletePassword(p.id, p.title)} className="p-0.5 hover:bg-slate-250 text-rose-500 rounded transition-colors" title="Delete">
                                   <Trash2 className="h-3 w-3" />
                                 </button>
                               </div>
                             </div>
 
                             {p.username && (
-                              <div className="flex items-center justify-between text-[9px] font-mono text-slate-400">
+                              <div className="flex items-center justify-between text-[9px] font-mono text-slate-500">
                                 <span>User: {p.username}</span>
-                                <button onClick={() => copyToClipboard(p.username, 'Username')} className="text-blue-400 hover:underline">Copy</button>
+                                <button onClick={() => copyToClipboard(p.username, 'Username')} className="text-slate-600 hover:underline">Copy</button>
                               </div>
                             )}
 
-                            <div className="flex items-center justify-between text-[9px] font-mono text-slate-200 bg-slate-950 border border-slate-800 px-1.5 py-1">
+                            <div className="flex items-center justify-between text-[9px] font-mono text-slate-700 bg-white border border-slate-200 px-1.5 py-1 rounded">
                               <span className="font-bold truncate max-w-[150px]">
                                 {visiblePasswords[p.id] ? p.password_val : '••••••••••••'}
                               </span>
                             </div>
 
                             {p.website_url && (
-                              <a href={p.website_url} target="_blank" rel="noopener noreferrer" className="text-[8px] font-mono text-blue-400 hover:underline block truncate">
+                              <a href={p.website_url} target="_blank" rel="noopener noreferrer" className="text-[8px] font-mono text-slate-500 hover:underline block truncate">
                                 {p.website_url}
                               </a>
                             )}
                             {p.notes && (
-                              <p className="text-[8px] font-mono text-slate-500 italic break-words">{p.notes}</p>
+                              <p className="text-[8px] font-mono text-slate-400 italic break-words">{p.notes}</p>
                             )}
                           </div>
                         ))
@@ -1730,14 +1732,14 @@ export default function Dashboard() {
                   </div>
 
                   {/* Add New Password Form */}
-                  <form onSubmit={handleAddPassword} className="pt-3 border-t border-slate-700/60 space-y-2">
-                    <span className="text-[9px] font-mono font-bold text-slate-300 block uppercase">TAMBAH PASSWORD BARU</span>
+                  <form onSubmit={handleAddPassword} className="pt-3 border-t border-slate-100 space-y-2">
+                    <span className="text-[9px] font-mono font-bold text-slate-500 block uppercase">TAMBAH PASSWORD BARU</span>
                     <input
                       type="text"
                       value={newPassTitle}
                       onChange={e => setNewPassTitle(e.target.value)}
                       placeholder="NAMA AKUN / APP (E.G. GITHUB, GMAIL)"
-                      className="w-full bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono uppercase"
+                      className="w-full bg-slate-50 border border-slate-200 p-1.5 text-slate-800 focus:outline-none text-[9px] font-mono rounded uppercase"
                       required
                     />
                     <div className="flex gap-1.5">
@@ -1746,14 +1748,14 @@ export default function Dashboard() {
                         value={newPassUser}
                         onChange={e => setNewPassUser(e.target.value)}
                         placeholder="USERNAME / EMAIL"
-                        className="flex-1 bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                        className="flex-1 bg-slate-50 border border-slate-200 p-1.5 text-slate-800 focus:outline-none text-[9px] font-mono rounded"
                       />
                       <input
                         type="text"
                         value={newPassVal}
                         onChange={e => setNewPassVal(e.target.value)}
                         placeholder="PASSWORD"
-                        className="flex-1 bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                        className="flex-1 bg-slate-50 border border-slate-200 p-1.5 text-slate-800 focus:outline-none text-[9px] font-mono rounded"
                         required
                       />
                     </div>
@@ -1762,19 +1764,19 @@ export default function Dashboard() {
                       value={newPassUrl}
                       onChange={e => setNewPassUrl(e.target.value)}
                       placeholder="URL WEBSITE (OPSIONAL)"
-                      className="w-full bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 p-1.5 text-slate-800 focus:outline-none text-[9px] font-mono rounded"
                     />
                     <input
                       type="text"
                       value={newPassNotes}
                       onChange={e => setNewPassNotes(e.target.value)}
                       placeholder="CATATAN / NOTES"
-                      className="w-full bg-slate-900 border border-slate-700/60 p-1.5 text-slate-200 focus:outline-none text-[9px] font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 p-1.5 text-slate-800 focus:outline-none text-[9px] font-mono rounded"
                     />
                     <button
                       type="submit"
                       disabled={isSavingPassword}
-                      className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
+                      className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-650 text-white font-mono font-bold py-1.5 rounded transition-all text-[9px] flex items-center justify-center gap-1"
                     >
                       <Plus className="h-3 w-3" />
                       {isSavingPassword ? 'SAVING...' : 'SAVE PASSWORD'}
@@ -1786,22 +1788,22 @@ export default function Dashboard() {
 
             {activeTab === 'reports' && (
               <div className="space-y-6 animate-slide-in">
-                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-blue-400" />
+                <h2 className="font-serif italic text-lg font-black text-slate-800 border-b-2 border-slate-300 pb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-slate-600" />
                   ANTIGRAVITY LIVE REPORTS
                 </h2>
-                <div className="border border-slate-700/60 p-5 bg-slate-800 space-y-3">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-700/60">
-                    <span className="font-bold text-slate-200 text-xs flex items-center gap-1.5">
-                      <FileText className="h-4 w-4 text-blue-400" />
+                <div className="border border-slate-200 p-5 bg-white space-y-3 rounded-lg shadow-sm">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <FileText className="h-4 w-4 text-slate-600" />
                       ANTIGRAVITY LIVE REPORTS
                     </span>
-                    <span className="text-[9px] font-mono text-slate-400 font-bold bg-slate-900 px-2 py-0.5 border border-slate-700">AUTO-SYNC</span>
+                    <span className="text-[9px] font-mono text-slate-500 font-bold bg-slate-100 px-2 py-0.5 border border-slate-200 rounded">AUTO-SYNC</span>
                     <div className="flex gap-1 ml-auto">
-                      <button onClick={handleDownloadPDF} className="p-1 hover:bg-slate-750 text-blue-400 transition-colors border border-transparent hover:border-slate-700 rounded">
+                      <button onClick={handleDownloadPDF} className="p-1 hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors border border-transparent hover:border-slate-200 rounded">
                         <span className="text-[8px] font-bold">PDF</span>
                       </button>
-                      <button onClick={handleDownloadDoc} className="p-1 hover:bg-slate-750 text-blue-400 transition-colors border border-transparent hover:border-slate-700 rounded">
+                      <button onClick={handleDownloadDoc} className="p-1 hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors border border-transparent hover:border-slate-200 rounded">
                         <span className="text-[8px] font-bold">DOC</span>
                       </button>
                     </div>
@@ -1810,22 +1812,22 @@ export default function Dashboard() {
                     {antigravityReports.length > 0 ? (
                       <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
                         {antigravityReports.map((r, i) => (
-                          <div key={i} className="space-y-2 border-b border-slate-700 pb-3 last:border-0">
+                          <div key={i} className="space-y-2 border-b border-slate-100 pb-3 last:border-0">
                             <div className="flex justify-between items-center">
-                              <span className="text-[9px] font-mono font-bold text-emerald-400">{new Date(r.timestamp || r.receivedAt).toLocaleString()}</span>
-                              <span className="text-[9px] font-mono bg-slate-900 text-blue-400 px-1 border border-slate-700">{r.status}</span>
+                              <span className="text-[9px] font-mono font-bold text-emerald-600">{new Date(r.timestamp || r.receivedAt).toLocaleString()}</span>
+                              <span className="text-[9px] font-mono bg-slate-100 text-slate-600 px-1 border border-slate-200 rounded">{r.status}</span>
                             </div>
-                            <div className="p-2 border border-slate-700 bg-slate-900 text-[10px] font-mono text-slate-300">
+                            <div className="p-2 border border-slate-200 bg-slate-50 text-[10px] font-mono text-slate-700 rounded">
                               <strong>summary:</strong> {r.summary}
                             </div>
-                            <div className="text-[10px] font-mono text-slate-300 whitespace-pre-wrap">{r.details}</div>
+                            <div className="text-[10px] font-mono text-slate-700 whitespace-pre-wrap">{r.details}</div>
                           </div>
                         ))}
                       </div>
                     ) : (
                       <div className="text-center py-6">
-                        <p className="text-slate-500 text-[9px] font-mono">BELUM ADA LAPORAN DARI ANTIGRAVITY.</p>
-                        <p className="text-slate-600 text-[8px] font-mono uppercase mt-1">Laporan masuk otomatis saat saya selesai bekerja.</p>
+                        <p className="text-slate-400 text-[9px] font-mono">BELUM ADA LAPORAN DARI ANTIGRAVITY.</p>
+                        <p className="text-slate-500 text-[8px] font-mono uppercase mt-1">Laporan masuk otomatis saat saya selesai bekerja.</p>
                       </div>
                     )}
                   </div>
@@ -1835,35 +1837,35 @@ export default function Dashboard() {
 
             {activeTab === 'simulator' && (
               <div className="space-y-6 animate-slide-in">
-                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
-                  <Play className="h-4 w-4 text-blue-400" />
+                <h2 className="font-serif italic text-lg font-black text-slate-800 border-b-2 border-slate-300 pb-2 flex items-center gap-2">
+                  <Play className="h-4 w-4 text-slate-600" />
                   SIMULATE AGENT COMMIT
                 </h2>
-                <div className="border border-slate-700/60 p-5 bg-slate-800 space-y-4">
-                  <span className="font-bold text-slate-200 block text-xs">SIMULATE AGENT COMMIT</span>
+                <div className="border border-slate-200 p-5 bg-white space-y-4 rounded-lg shadow-sm">
+                  <span className="font-bold text-slate-750 block text-xs">SIMULATE AGENT COMMIT</span>
                   <form onSubmit={handleSimulate} className="space-y-3">
                     <div className="flex gap-2">
                       <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}
-                        className="flex-1 bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[10px]"
+                        className="flex-1 bg-slate-50 border border-slate-200 p-2 text-slate-800 focus:outline-none text-[10px] rounded"
                       >
                         <option>UI Agent</option><option>Backend Agent</option><option>Testing Agent</option><option>DevOps Agent</option>
                       </select>
                       <input type="number" value={filesCount} onChange={e => setFilesCount(Number(e.target.value))} min="1" max="10"
-                        className="w-12 bg-slate-900 border border-slate-700/60 p-2 text-center text-slate-200 focus:outline-none text-[10px]" required
+                        className="w-12 bg-slate-50 border border-slate-200 p-2 text-center text-slate-800 focus:outline-none text-[10px] rounded" required
                       />
                     </div>
                     <input type="text" value={simMessage} onChange={e => setSimMessage(e.target.value)} placeholder="COMMIT MESSAGE"
-                      className="w-full bg-slate-900 border border-slate-700/60 p-2 text-slate-200 focus:outline-none text-[10px]" required
+                      className="w-full bg-slate-50 border border-slate-200 p-2 text-slate-800 focus:outline-none text-[10px] rounded" required
                     />
                     <button type="submit" disabled={isSimulating}
-                      className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-2 border border-blue-800 transition-all text-[10px] flex items-center justify-center gap-2"
+                      className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-650 text-white font-mono font-bold py-2 rounded transition-all text-[10px] flex items-center justify-center gap-2"
                     >
                       <Play className="h-3 w-3" />
                       {isSimulating ? 'SIMULATING...' : 'SIMULATE COMMIT'}
                     </button>
                   </form>
                   {simStatus && (
-                    <div className="p-2 border border-slate-700 bg-slate-900 font-mono text-[9px] text-slate-350">{simStatus}</div>
+                    <div className="p-2 border border-slate-200 bg-slate-50 font-mono text-[9px] text-slate-600 rounded">{simStatus}</div>
                   )}
                 </div>
               </div>
@@ -1871,11 +1873,11 @@ export default function Dashboard() {
 
             {activeTab === 'terminal' && (
               <div className="space-y-6 animate-slide-in h-full flex flex-col">
-                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-slate-700 pb-2 flex items-center gap-2">
-                  <Terminal className="h-4 w-4 text-blue-400" />
+                <h2 className="font-serif italic text-lg font-black text-slate-200 border-b-2 border-neutral-850 pb-2 flex items-center gap-2">
+                  <Terminal className="h-4 w-4 text-emerald-400" />
                   SYSTEM CONSOLE TERMINAL
                 </h2>
-                <div className="flex-1 min-h-[360px] h-full">
+                <div className="flex-1 min-h-[360px] h-full rounded-lg overflow-hidden shadow-inner border border-neutral-800">
                   <InteractiveTerminal 
                     agents={agents} 
                     onCommand={async (cmd) => {
@@ -1894,9 +1896,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* macOS Dock Switcher at the bottom */}
+        {/* macOS Frosted Glass Dock Switcher at the bottom */}
         <div className="flex justify-center pb-12">
-          <div className="flex items-center gap-2 bg-slate-950/80 backdrop-blur-md px-5 py-3.5 rounded-2xl border border-slate-800 shadow-2xl transition-all">
+          <div className="flex items-center gap-3 bg-white/70 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/40 shadow-xl transition-all hover:shadow-2xl">
             {[
               { id: 'agents', label: 'Agents', icon: <Activity className="h-5 w-5" /> },
               { id: 'timeline', label: 'Timeline', icon: <GitCommit className="h-5 w-5" /> },
@@ -1909,10 +1911,10 @@ export default function Dashboard() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl transition-all duration-300 transform hover:-translate-y-2.5 hover:scale-110 ${
+                className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl transition-all duration-300 transform hover:-translate-y-3 hover:scale-115 ${
                   activeTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/35 border border-blue-500/50'
-                    : 'bg-slate-850 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-800/40'
+                    ? 'bg-slate-800 text-white shadow-md border border-slate-900'
+                    : 'bg-white/90 text-slate-500 hover:bg-slate-100 hover:text-slate-800 border border-slate-200/40 shadow-sm'
                 }`}
                 title={tab.label}
               >
