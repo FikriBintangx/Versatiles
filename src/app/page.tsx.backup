@@ -14,11 +14,11 @@ import { supabase } from '@/lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart
 } from 'recharts';
-import { Rnd } from 'react-rnd';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { RefreshCw, Play, Users, 
+import { RefreshCw, Play, 
   GitCommit, 
   Activity, 
   Server, 
@@ -705,9 +705,6 @@ export default function Dashboard() {
   // State untuk Filter & Search Repositories
   const [repoSearch, setRepoSearch] = useState('');
   const [repoFilter, setRepoFilter] = useState<'All' | 'Kerjaan' | 'Side Project'>('All');
-  const [activeApp, setActiveApp] = useState<string | null>('Overview');
-  const [rndSize, setRndSize] = useState({ width: 1000, height: 700 });
-  const [rndPosition, setRndPosition] = useState({ x: 100, y: 100 });
   const [customCategories, setCustomCategories] = useState<Record<string, string>>({});
 
   // Password Vault State
@@ -838,14 +835,14 @@ export default function Dashboard() {
       if (saved) setGitToken(saved);
     }
     
-    () => {};
+    fetchData();
 
-    const agentsSub  = supabase.channel('agents-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => () => {}).subscribe();
-    const commitsSub = supabase.channel('commits-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'commits' }, () => () => {}).subscribe();
-    const tasksSub   = supabase.channel('tasks-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'issues_tasks' }, () => () => {}).subscribe();
-    const goalsSub   = supabase.channel('goals-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, () => { () => {}; addNotification({ type: 'goal', title: 'Goal Updated', message: 'Project goal list has been updated.' }); }).subscribe();
-    const reportsSub = supabase.channel('reports-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports' }, () => () => {}).subscribe();
-    const passSub    = supabase.channel('passwords-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'passwords' }, () => () => {}).subscribe();
+    const agentsSub  = supabase.channel('agents-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => fetchData()).subscribe();
+    const commitsSub = supabase.channel('commits-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'commits' }, () => fetchData()).subscribe();
+    const tasksSub   = supabase.channel('tasks-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'issues_tasks' }, () => fetchData()).subscribe();
+    const goalsSub   = supabase.channel('goals-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, () => { fetchData(); addNotification({ type: 'goal', title: 'Goal Updated', message: 'Project goal list has been updated.' }); }).subscribe();
+    const reportsSub = supabase.channel('reports-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports' }, () => fetchData()).subscribe();
+    const passSub    = supabase.channel('passwords-ch').on('postgres_changes', { event: '*', schema: 'public', table: 'passwords' }, () => fetchData()).subscribe();
 
     return () => {
       supabase.removeChannel(agentsSub);
@@ -980,7 +977,7 @@ export default function Dashboard() {
       setNewPassVal('');
       setNewPassUrl('');
       setNewPassNotes('');
-      () => {};
+      fetchData();
       addNotification({ type: 'agent', title: 'Password Saved', message: `Password for "${newPassTitle}" successfully saved.` });
     } catch (err: unknown) {
       alert('Error saving password: ' + err.message);
@@ -994,7 +991,7 @@ export default function Dashboard() {
     try {
       const { error } = await supabase.from('passwords').delete().eq('id', id);
       if (error) throw error;
-      () => {};
+      fetchData();
       addNotification({ type: 'error', title: 'Password Deleted', message: `Password for "${title}" has been deleted.` });
     } catch (err: unknown) {
       alert('Error deleting password: ' + err.message);
@@ -1071,92 +1068,121 @@ export default function Dashboard() {
   // JSX
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen w-full overflow-hidden font-sans relative text-blue-700 selection:bg-blue-500/20 uppercase tracking-wider text-xs" style={{ background: '#FFFFFF' }}>
+    <div className="min-h-screen text-blue-700 bg-slate-50 relative selection:bg-blue-500/20 uppercase tracking-wider font-sans text-xs">
       
-      {/* Desktop Background elements representing the user's Figma design */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ minWidth: '5863px', minHeight: '4005px', transform: 'scale(0.3)', transformOrigin: 'top left' }}>
-         {/* Rectangle 7 */}
-         <div className="absolute bg-[#D9D9D9] rounded-[292px]" style={{ width: '5479px', height: '3146px', left: '243px', top: '170px' }}></div>
-         {/* Rectangle 8 */}
-         <div className="absolute bg-[#D9D9D9] rounded-[292px]" style={{ width: '5479px', height: '3146px', left: '128px', top: '170px' }}></div>
-         {/* Rectangle 17 */}
-         <div className="absolute bg-[#4C4C4C] rounded-[292px]" style={{ width: '5364px', height: '2708px', left: '243px', top: '284px' }}></div>
-      </div>
+      {/* Background Image from Portfolio Hermes */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-[-1] opacity-[0.35]"
+        style={{ 
+          backgroundImage: "url('/bg.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'repeat'
+        }}
+      />
 
-      {/* Toast Notification Stack */}
-      <div className="fixed bottom-32 right-6 z-[999] flex flex-col gap-2">
+      {/* Noise Texture Overlay */}
+      <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.04] mix-blend-multiply"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }}
+      />
+
+      {/* Toast AppNotification Stack */}
+      <div className="fixed bottom-6 right-6 z-[999] flex flex-col gap-2">
         {toasts.map(t => (
           <NotificationToast key={t.id} notif={t} onClose={() => dismissToast(t.id)} />
         ))}
       </div>
 
-      {/* Header Bar (Mac-like top bar) */}
-      <header className="absolute top-0 w-full z-10 flex justify-between items-center px-6 py-1.5 bg-black/40 backdrop-blur-xl border-b border-white/10 shadow-sm text-white">
-        <div className="flex items-center gap-3">
-          <div className="w-5 h-5 rounded bg-white flex items-center justify-center text-black font-bold font-serif text-[10px]">
-            V
-          </div>
-          <span className="font-bold text-[10px] tracking-widest">VERSATILES OS</span>
-        </div>
+      <div className="max-w-[1600px] mx-auto px-6 py-8 relative z-10 space-y-10">
         
-        <div className="flex items-center gap-4">
-           {/* Connection Status */}
-           <div className="flex items-center gap-2">
-               <span className="relative flex h-2 w-2">
-                 {true ? (
-                   <>
-                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                   </>
-                 ) : (
-                   <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                 )}
-               </span>
-               <span className="font-mono text-[9px] font-bold opacity-80">
-                 {true ? 'LIVE' : 'OFFLINE'}
-               </span>
-           </div>
-           
-           <button onClick={() => () => {}} className="hover:opacity-70 transition-opacity">
-              <RefreshCw className="h-3 w-3" />
-           </button>
-        </div>
-      </header>
-
-      {/* Floating Application Window */}
-      {activeApp && (
-        <Rnd
-          size={rndSize}
-          position={rndPosition}
-          onDragStop={(e, d) => setRndPosition({ x: d.x, y: d.y })}
-          onResizeStop={(e, direction, ref, delta, position) => {
-            setRndSize({ width: ref.style.width, height: ref.style.height });
-            setRndPosition(position);
-          }}
-          bounds="parent"
-          minWidth={400}
-          minHeight={300}
-          dragHandleClassName="rnd-drag-handle"
-          className="flex flex-col bg-white rounded-xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden border border-black/10 z-20 mt-8"
-        >
-          {/* Window Header */}
-          <div className="rnd-drag-handle flex items-center justify-between px-3 py-2 bg-slate-100 border-b border-black/10 cursor-move">
-            <div className="flex items-center gap-1.5 w-16">
-              <div onClick={() => setActiveApp(null)} className="w-3 h-3 rounded-full bg-[#FF5F56] border border-black/10 shadow-inner cursor-pointer hover:bg-[#E0443E]"></div>
-              <div className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-black/10 shadow-inner cursor-pointer hover:bg-[#DEA123]"></div>
-              <div className="w-3 h-3 rounded-full bg-[#27C93F] border border-black/10 shadow-inner cursor-pointer hover:bg-[#1AAB29]"></div>
-            </div>
-            <div className="text-slate-800 font-mono text-[10px] uppercase tracking-widest font-bold flex-1 text-center">
-              {activeApp}
-            </div>
-            <div className="w-16"></div> {/* Spacer for centering */}
+        {/* ── Header ───────────────────────────────────────────────────────── */}
+        <header className="grid grid-cols-1 md:grid-cols-5 border-t-2 border-b-2 border-blue-700 text-blue-900 items-center">
+          <div className="p-4 border-r border-blue-700 font-serif italic text-2xl font-black tracking-normal text-blue-800">
+            ORCHESTRATOR
           </div>
+          <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80 flex items-center justify-between gap-2">
+            <span>[ STATUS: <span className="text-emerald-600 font-bold">ACTIVE</span> ]</span>
+            
+          </div>
+          <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80">
+            REPO: {activeRepo ? activeRepo.name : 'NONE'}
+          </div>
+          <div className="p-4 border-r border-blue-700 font-mono text-[10px] tracking-widest text-blue-700/80 flex gap-4">
+            <span className="flex items-center gap-1"><span className="text-emerald-600 font-bold">+{totalAdded}</span> ADDED</span>
+            <span className="flex items-center gap-1"><span className="text-rose-600 font-bold">-{totalDeleted}</span> DEL</span>
+            <span><span className="font-bold text-blue-900">{commits.length}</span> COMMITS</span>
+          </div>
+          <div className="p-4 flex justify-between items-center gap-2">
+            {!gitToken ? (
+              <div className="flex gap-2">
+                <a href="/api/auth/github" className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 text-slate-100 font-mono font-bold px-3 py-1.5 border border-blue-800 transition-all text-[10px]" title="Login via OAuth">
+                  <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                  CONNECT GITHUB
+                </a>
+                <button 
+                  onClick={() => {
+                    const token = prompt('Masukkan GitHub Personal Access Token (PAT) (classic) dengan scope "repo":\n\n(Ini berguna jika Organisasi GitHub memblokir OAuth App)');
+                    if (token) {
+                      localStorage.setItem('gh_access_token', token);
+                      setGitToken(token);
+                    }
+                  }} 
+                  className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-slate-100 font-mono font-bold px-3 py-1.5 border border-emerald-800 transition-all text-[10px]"
+                  title="Gunakan PAT (Personal Access Token)"
+                >
+                  USE PAT
+                </button>
+              </div>
+            ) : (
+              <button onClick={handleLogoutGitHub} className="flex items-center gap-2 bg-rose-700 hover:bg-rose-600 text-slate-100 font-mono font-bold px-3 py-1.5 border border-rose-800 transition-all text-[10px]">
+                DISCONNECT
+              </button>
+            )}
 
-          {/* Window Content */}
-          <div className="flex-1 overflow-auto relative custom-scrollbar bg-slate-50 text-blue-900 p-4">
-            {activeApp === 'Overview' && (
-              <div className="h-full flex flex-col gap-6">
-                {/* ── Stats Bar ────────────────────────────────────────────────────── */}
+            {/* AppNotification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowBell(v => !v); markAllRead(); }}
+                className="relative p-1.5 border border-blue-700/40 hover:bg-blue-700/10 text-blue-700 transition-all rounded"
+              >
+                {unreadCount > 0 ? <BellRing className="h-4 w-4 animate-wiggle" /> : <Bell className="h-4 w-4" />}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-rose-600 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showBell && (
+                <div className="absolute right-0 top-10 w-80 bg-white border border-blue-700/30 shadow-2xl z-50 max-h-96 overflow-y-auto">
+                  <div className="flex justify-between items-center px-3 py-2 border-b border-blue-700/10">
+                    <span className="font-bold text-blue-900 text-[10px]">NOTIFICATIONS</span>
+                    <button onClick={() => setShowBell(false)}><X className="h-3.5 w-3.5 text-blue-700/50" /></button>
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="text-center text-blue-800/40 font-mono text-[10px] py-6">NO NOTIFICATIONS YET</p>
+                  ) : (
+                    notifications.map(n => (
+                      <div key={n.id} className={`px-3 py-2.5 border-b border-blue-700/10 last:border-0 ${n.read ? 'opacity-60' : 'bg-blue-50/50'}`}>
+                        <div className="flex justify-between items-center mb-0.5">
+                          <span className="font-bold text-blue-900 text-[10px]">{n.title}</span>
+                          <span className="text-[8px] font-mono text-blue-800/40">{n.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <p className="text-[9px] font-mono text-blue-800/60 leading-snug">{n.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button onClick={() => fetchData()} className="p-1.5 border border-blue-700/40 hover:bg-blue-700/10 text-blue-700 transition-all rounded">
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </header>
+
+        {/* ── Stats Bar ────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'TOTAL COMMITS', value: commits.length, icon: <GitCommit className="h-4 w-4" />, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-700/20' },
@@ -1195,29 +1221,8 @@ export default function Dashboard() {
             />
           </div>
         </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   {/* ── Contribution Heatmap ─────────────────────────────────────────── */}
-        <div className="window-card min-h-[220px]" style={{ height: '340px' }}>
-          <div className="window-header">
-            <span className="font-mono text-[9px] font-bold text-blue-900 flex items-center gap-1.5">
-              <Activity className="h-3.5 w-3.5" /> CONTRIBUTION_HEATMAP.SYS
-            </span>
-            <div className="window-dots">
-              <span className="window-dot bg-amber-400" />
-              <span className="window-dot bg-emerald-500" />
-              <span className="window-dot bg-rose-500" />
-            </div>
-          </div>
-          <div className="window-content-inner" style={{ padding: 0 }}>
-            <CommitHeatmap
-              commits={allCommitsRef.current}
-              year={heatmapYear}
-              onYearChange={setHeatmapYear}
-              gitToken={gitToken}
-            />
-          </div>
-        </div>
-                   {/* ── AI Agent Workload Chart ─────────────────────────────────────────── */}
+
+        {/* ── AI Agent Workload Chart ─────────────────────────────────────────── */}
         <div className="window-card min-h-[200px]" style={{ height: '320px' }}>
           <div className="window-header">
             <span className="font-mono text-[9px] font-bold text-blue-900 flex items-center gap-1.5">
@@ -1269,12 +1274,8 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
             })()}
           </div>
         </div>
-                </div>
-              </div>
-            )}
-            {activeApp === 'Repository' && (
-              <div className="h-full flex flex-col gap-6">
-                {/* ── Pilih Repo ────────────────────────────────────────────────────── */}
+
+        {/* ── Pilih Repo ────────────────────────────────────────────────────── */}
         {gitToken && (() => {
           // Logika Filter dan Kategori
           const getRepoCategory = (repo: Record<string, unknown>) => {
@@ -1379,7 +1380,8 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
             </section>
           );
         })()}
-                {/* ── Repo Explorer ─────────────────────────────────────────────────── */}
+
+        {/* ── Repo Explorer ─────────────────────────────────────────────────── */}
         {activeRepo && (
           <section className="border border-blue-700/40 p-6 bg-white space-y-4 resize overflow-auto">
             <h2 className="font-serif italic text-lg font-black text-blue-900 flex items-center gap-2 border-b border-blue-700/20 pb-3">
@@ -1427,105 +1429,481 @@ Active: agentGoals.length > 0 ? active : Math.floor(Math.random() * 5) + 1,
             ) : null}
           </section>
         )}
-              </div>
-            )}
-            {activeApp === 'Agents' && (
-              <div className="h-full flex flex-col">
-                
-<div>Content not found</div>
 
-              </div>
-            )}
-            {activeApp === 'Timeline' && (
-              <div className="h-full flex flex-col">
-                
-<div>Content not found</div>
-
-              </div>
-            )}
-            {activeApp === 'Terminal' && (
-              <div className="h-full flex flex-col bg-slate-900 rounded-lg overflow-hidden">
-                
-<div>Content not found</div>
-
-              </div>
-            )}
-            {activeApp === 'Goals' && (
-              <div className="h-full flex flex-col">
-                
-<div>Content not found</div>
-
-              </div>
-            )}
-            {activeApp === 'Vault' && (
-              <div className="h-full flex flex-col">
-                
-<div>Content not found</div>
-
-              </div>
-            )}
-            {activeApp === 'Reports' && (
-              <div className="h-full flex flex-col">
-                
-<div>Content not found</div>
-
-              </div>
-            )}
-            {activeApp === 'Simulator' && (
-              <div className="h-full flex flex-col">
-                
-<div>Content not found</div>
-
-              </div>
-            )}
+        {/* ── Dashboard Grid ── */}
+        <PanelGroup direction="vertical">
+          <Panel defaultSize={75} minSize={40}>
+            <PanelGroup direction="horizontal">
+              <Panel defaultSize={25} minSize={15}>
+                {/* Agents */}
+                <div key="agents" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 `}>
+              <Activity className="h-4 w-4 text-blue-700" />
+              AI AGENTS STATUS
+            </h2>
+            <div className="flex-1 overflow-y-auto space-y-4 pt-4 pr-2">
+              {agents.map(agent => (
+                <div key={agent.id} className="border border-blue-700/40 p-4 bg-white hover:border-blue-700 transition-all flex flex-col justify-between h-36">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-blue-900 text-sm tracking-wide">{agent.name}</h3>
+                      <span className="text-[10px] text-blue-800/50 uppercase tracking-widest">{agent.role} Agent</span>
+                    </div>
+                    <span className={`px-2 py-0.5 border text-[9px] font-bold ${
+                      agent.status === 'Working'        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 animate-pulse' :
+                      agent.status === 'Waiting Review' ? 'border-amber-600 bg-amber-50 text-amber-700' :
+                                                          'border-blue-700/20 bg-slate-100 text-blue-800/60'
+                    }`}>{agent.status}</span>
+                  </div>
+                  <div className="pt-3 border-t border-blue-700/10 flex justify-between items-center text-[10px] text-blue-800/60">
+                    <div>
+                      <span className="text-[9px] opacity-50 uppercase font-mono block">LAST ACTIVITY</span>
+                      <span className="font-bold text-blue-900 truncate max-w-[200px] block">
+                        {commits.find(c => c.author_name === agent.name)?.message || 'NO COMMITS YET'}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[9px]">
+                      {new Date(agent.last_active).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          
-          {/* Resize Handle indicator in bottom right */}
-          <div className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex flex-wrap gap-0.5 justify-end p-0.5 pointer-events-none opacity-30">
-            <div className="w-1 h-1 bg-black rounded-full"></div>
-            <div className="w-1 h-1 bg-black rounded-full"></div>
-            <div className="w-1 h-1 bg-black rounded-full"></div>
+              </Panel>
+              <PanelResizeHandle className="w-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-col-resize transition-colors" />
+              <Panel defaultSize={45} minSize={20}>
+                {/* Timeline */}
+                <div key="timeline" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 `}>
+              <GitCommit className="h-4 w-4 text-blue-700" />
+              ACTIVITY TIMELINE
+            </h2>
+            <div className="border border-blue-700/40 p-6 bg-white flex-1 overflow-y-auto mt-4 space-y-6">
+              {commits.length === 0 ? (
+                <div className="text-center py-20 text-blue-800/40 font-mono">BELUM ADA AKTIVITAS</div>
+              ) : (
+                <div className="relative border-l-2 border-blue-700/20 pl-4 space-y-6">
+                  {commits.slice(0, 15).map(commit => (
+                    <div key={commit.id} className="relative">
+                      <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-blue-700 border border-blue-800" />
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-blue-850">{commit.author_name}</span>
+                        <span className="font-mono text-blue-800/50">
+                          {new Date(commit.commit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-mono text-blue-900/80 bg-blue-50/50 p-2 border border-blue-700/10 mt-1 uppercase">
+                        {commit.message}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1.5 text-[9px] text-blue-800/40 font-mono">
+                        <span className="text-emerald-700 font-bold">+{commit.added_lines}</span>
+                        <span className="text-rose-700 font-bold">-{commit.deleted_lines}</span>
+                        <span>{commit.branch}</span>
+                        <span>{commit.sha?.substring(0, 7)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </Rnd>
-      )}
+              </Panel>
+              <PanelResizeHandle className="w-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-col-resize transition-colors" />
+              <Panel defaultSize={30} minSize={20}>
+                {/* Right Column */}
+                <PanelGroup direction="vertical">
+                  <Panel defaultSize={40} minSize={20}>
+                    <div key="goals" className="flex flex-col h-full overflow-hidden">
+            <h2 className={`font-serif italic text-lg font-black text-blue-900 border-b-2 border-blue-700 pb-2 flex items-center gap-2 `}>
+              <Sparkles className="h-4 w-4 text-blue-700" />
+              AI INSIGHT &amp; GOALS
+            </h2>
 
-      {/* Mac-like Bottom Dock */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-2 rounded-2xl bg-[#D9D9D9]/80 backdrop-blur-2xl border border-white/60 shadow-[0_20px_40px_rgba(0,0,0,0.2)] z-50">
-        {[
-          { id: 'Overview', icon: <Activity className="w-6 h-6" />, color: 'bg-[#666666]' },
-          { id: 'Repository', icon: <Folder className="w-6 h-6" />, color: 'bg-[#666666]' },
-          { id: 'Agents', icon: <Users className="w-6 h-6" />, color: 'bg-[#666666]' },
-          { id: 'Timeline', icon: <GitCommit className="w-6 h-6" />, color: 'bg-[#666666]' },
-          { id: 'Goals', icon: <Target className="w-6 h-6" />, color: 'bg-[#666666]' },
-          { id: 'Vault', icon: <Key className="w-6 h-6" />, color: 'bg-[#666666]' },
-          { id: 'Reports', icon: <FileText className="w-6 h-6" />, color: 'bg-[#666666]' },
-          { id: 'Simulator', icon: <Play className="w-6 h-6" />, color: 'bg-[#666666]' },
-          { id: 'Terminal', icon: <Terminal className="w-6 h-6" />, color: 'bg-[#666666]' },
-        ].map(app => (
-          <button
-            key={app.id}
-            onClick={() => setActiveApp(activeApp === app.id ? null : app.id)}
-            className={`group relative flex items-center justify-center w-12 h-12 rounded-[14px] transition-all duration-300 ease-out border border-white/20 ${
-              activeApp === app.id 
-                ? `${app.color} text-white shadow-lg scale-110 -translate-y-2` 
-                : 'bg-[#666666]/60 text-white/80 hover:scale-105 hover:-translate-y-1 hover:bg-[#666666]'
-            }`}
-          >
-            {app.icon}
-            
-            {/* Tooltip */}
-            <span className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-[9px] px-2 py-1 rounded whitespace-nowrap pointer-events-none shadow-xl font-bold font-mono">
-              {app.id}
-            </span>
-            
-            {/* Active Indicator dot */}
-            {activeApp === app.id && (
-              <span className="absolute -bottom-2 w-1 h-1 bg-black/60 rounded-full"></span>
-            )}
-          </button>
-        ))}
+            {/* ── Goals with Priority ─────────────────────────────────── */}
+            <div className="border border-blue-700/40 p-5 bg-white flex-1 flex flex-col mt-4 overflow-hidden">
+              <div className="flex justify-between items-center pb-2 border-b border-blue-700/10">
+                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                  <Target className="h-4 w-4 text-blue-700" />
+                  PROJECT GOALS
+                </span>
+                <span className="font-mono text-[9px] bg-blue-50 text-blue-700 border border-blue-700/30 px-1.5 py-0.5 font-bold">
+                  {goals.filter(g => g.status === 'Achieved').length}/{goals.length} DONE
+                </span>
+              </div>
+
+              {/* Priority filter pills */}
+              <div className="flex gap-1.5">
+                {(['High', 'Medium', 'Low'] as const).map(p => {
+                  const cfg = PRIORITY_CONFIG[p];
+                  const cnt = goals.filter(g => (g.priority || 'Medium') === p).length;
+                  return (
+                    <span key={p} className={`flex items-center gap-1 px-2 py-0.5 border text-[8px] font-bold font-mono ${cfg.bg} ${cfg.border} ${cfg.color}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                      {p} ({cnt})
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Goal list */}
+              <div className="flex-1 overflow-y-auto min-h-[150px] space-y-2 pr-1 mt-4">
+                {goals.length === 0 ? (
+                  <p className="text-blue-800/40 text-[9px] font-mono text-center py-4">BELUM ADA GOAL.</p>
+                ) : (
+                  <KanbanBoard goals={goals} onStatusChange={toggleGoalStatus} />
+                )}
+              </div>
+
+              {/* Form Tambah Goal with Priority */}
+              <form onSubmit={handleAddGoal} className="pt-3 border-t border-blue-700/10 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text" value={newGoalTitle} onChange={e => setNewGoalTitle(e.target.value)}
+                    placeholder="TARGET / GOAL"
+                    className="flex-1 bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
+                    required
+                  />
+                  <select value={assignedAgent} onChange={e => setAssignedAgent(e.target.value)}
+                    className="w-28 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                  >
+                    <option value="UI Agent">UI AGENT</option>
+                    <option value="Backend Agent">BACKEND AGENT</option>
+                    <option value="Testing Agent">TESTING AGENT</option>
+                    <option value="DevOps Agent">DEVOPS AGENT</option>
+                  </select>
+                </div>
+                <input type="text" value={newGoalDesc} onChange={e => setNewGoalDesc(e.target.value)}
+                  placeholder="DESKRIPSI (OPSIONAL)"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px] font-mono uppercase"
+                />
+                {/* Priority selector */}
+                <div className="flex gap-1.5">
+                  {(['High', 'Medium', 'Low'] as const).map(p => {
+                    const cfg = PRIORITY_CONFIG[p];
+                    return (
+                      <button key={p} type="button" onClick={() => setNewGoalPriority(p)}
+                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 border text-[8px] font-bold font-mono transition-all ${
+                          newGoalPriority === p ? `${cfg.bg} ${cfg.border} ${cfg.color}` : 'border-blue-700/20 text-blue-700/50 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Flag className="h-2.5 w-2.5" />{p}
+                      </button>
+                    );
+                  })}
+                </div>
+                <textarea value={newGoalPrompt} onChange={e => setNewGoalPrompt(e.target.value)}
+                  placeholder="AI INSTRUCTION / PROMPT (E.G. BUAT FILE NAVBAR.TSX DI SRC/COMPONENTS)"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[9px] font-mono uppercase h-14"
+                />
+                <button type="submit" disabled={isAddingGoal}
+                  className="w-full bg-blue-700 hover:bg-blue-600 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  {isAddingGoal ? 'ASSIGNING...' : '+ ASSIGN TASK TO AGENT'}
+                </button>
+              </form>
+            </div>
+
+          </div>
+                  </Panel>
+                  <PanelResizeHandle className="h-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-row-resize transition-colors" />
+                  <Panel defaultSize={20} minSize={15}>
+                    <div key="vault" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <div className={` flex justify-between items-center pb-2 border-b border-blue-700/10 mb-4`}>
+                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                  <Key className="h-4 w-4 text-blue-700" />
+                  PASSWORD SAFE VAULT
+                </span>
+                <span className="text-[8px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 border border-emerald-600/20">SECURED</span>
+              </div>
+
+              {/* Password Search */}
+              <input
+                type="text"
+                value={passSearch}
+                onChange={e => setPassSearch(e.target.value)}
+                placeholder="CARI PASSWORD..."
+                className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[9px] font-mono uppercase"
+              />
+
+              {/* Password List */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 mt-2">
+                {passwords.filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase()))).length === 0 ? (
+                  <p className="text-center text-blue-800/40 font-mono text-[9px] py-4">BELUM ADA PASSWORD TERSIMPAN</p>
+                ) : (
+                  passwords
+                    .filter(p => p.title.toLowerCase().includes(passSearch.toLowerCase()) || (p.username && p.username.toLowerCase().includes(passSearch.toLowerCase())))
+                    .map(p => (
+                      <div key={p.id} className="p-2 border border-blue-700/10 bg-slate-50 space-y-1">
+                        <div className="flex justify-between items-start">
+                          <span className="font-bold text-[10px] text-blue-900 truncate max-w-[120px]">{p.title}</span>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => togglePasswordVisibility(p.id)} className="p-0.5 hover:bg-slate-200 text-blue-700 rounded transition-colors" title="Show/Hide">
+                              {visiblePasswords[p.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                            </button>
+                            <button onClick={() => copyToClipboard(p.password_val, 'Password')} className="p-0.5 hover:bg-slate-200 text-blue-700 rounded transition-colors" title="Copy Password">
+                              <Copy className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => handleDeletePassword(p.id, p.title)} className="p-0.5 hover:bg-slate-200 text-rose-600 rounded transition-colors" title="Delete">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {p.username && (
+                          <div className="flex items-center justify-between text-[9px] font-mono text-blue-800/60">
+                            <span>User: {p.username}</span>
+                            <button onClick={() => copyToClipboard(p.username, 'Username')} className="text-blue-700 hover:underline">Copy</button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-[9px] font-mono text-blue-950 bg-white border border-blue-700/5 px-1 py-0.5">
+                          <span className="font-bold truncate max-w-[150px]">
+                            {visiblePasswords[p.id] ? p.password_val : '••••••••••••'}
+                          </span>
+                        </div>
+
+                        {p.website_url && (
+                          <a href={p.website_url} target="_blank" rel="noopener noreferrer" className="text-[8px] font-mono text-blue-600 hover:underline block truncate">
+                            {p.website_url}
+                          </a>
+                        )}
+                        {p.notes && (
+                          <p className="text-[8px] font-mono text-blue-800/40 italic break-words">{p.notes}</p>
+                        )}
+                      </div>
+                    ))
+                )}
+              </div>
+
+              {/* Add New Password Form */}
+              <form onSubmit={handleAddPassword} className="pt-3 border-t border-blue-700/10 space-y-2">
+                <span className="text-[9px] font-mono font-bold text-blue-900 block uppercase">TAMBAH PASSWORD BARU</span>
+                <input
+                  type="text"
+                  value={newPassTitle}
+                  onChange={e => setNewPassTitle(e.target.value)}
+                  placeholder="NAMA AKUN / APP (E.G. GITHUB, GMAIL)"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono uppercase"
+                  required
+                />
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={newPassUser}
+                    onChange={e => setNewPassUser(e.target.value)}
+                    placeholder="USERNAME / EMAIL"
+                    className="flex-1 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                  />
+                  <input
+                    type="text"
+                    value={newPassVal}
+                    onChange={e => setNewPassVal(e.target.value)}
+                    placeholder="PASSWORD"
+                    className="flex-1 bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                    required
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={newPassUrl}
+                  onChange={e => setNewPassUrl(e.target.value)}
+                  placeholder="URL WEBSITE (OPSIONAL)"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                />
+                <input
+                  type="text"
+                  value={newPassNotes}
+                  onChange={e => setNewPassNotes(e.target.value)}
+                  placeholder="CATATAN / NOTES"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-1.5 text-blue-950 focus:outline-none text-[9px] font-mono"
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingPassword}
+                  className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-1.5 border border-blue-800 transition-all text-[9px] flex items-center justify-center gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  {isSavingPassword ? 'SAVING...' : 'SAVE PASSWORD'}
+                </button>
+              </form>
+          </div>
+                  </Panel>
+                  <PanelResizeHandle className="h-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-row-resize transition-colors" />
+                  <Panel defaultSize={25} minSize={15}>
+                    <div key="reports" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <div className={` flex justify-between items-center pb-2 border-b border-blue-700/10 mb-2`}>
+                <span className="font-bold text-blue-900 text-xs flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-blue-700" />
+                  ANTIGRAVITY LIVE REPORTS
+                </span>
+                <span className="text-[9px] font-mono text-blue-800/60 font-bold bg-slate-50 px-2 py-0.5 border border-blue-700/10">AUTO-SYNC</span>
+                <div className="flex gap-1 ml-auto">
+                  <button onClick={handleDownloadPDF} className="p-1 hover:bg-slate-100 text-blue-700 transition-colors border border-transparent hover:border-blue-700/20 rounded">
+                    <span className="text-[8px] font-bold">PDF</span>
+                  </button>
+                  <button onClick={handleDownloadDoc} className="p-1 hover:bg-slate-100 text-blue-700 transition-colors border border-transparent hover:border-blue-700/20 rounded">
+                    <span className="text-[8px] font-bold">DOC</span>
+                  </button>
+                </div>
+              </div>
+              <div id="report-content" className="flex-1 overflow-y-auto pr-2 mt-2">
+                {antigravityReports.length > 0 ? (
+                  <div className="space-y-4">
+                    {antigravityReports.map((r, i) => (
+                      <div key={i} className="space-y-2 border-b border-blue-700/10 pb-3 last:border-0">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] font-mono font-bold text-emerald-700">{new Date(r.timestamp || r.receivedAt).toLocaleString()}</span>
+                          <span className="text-[9px] font-mono bg-blue-50 text-blue-700 px-1 border border-blue-700/20">{r.status}</span>
+                        </div>
+                        <div className="p-2 border border-blue-700/10 bg-slate-50 text-[10px] font-mono text-blue-900">
+                          <strong>summary:</strong> {r.summary}
+                        </div>
+                        <div className="text-[10px] font-mono text-blue-950 whitespace-pre-wrap">{r.details}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <p className="text-blue-800/40 text-[9px] font-mono">BELUM ADA LAPORAN DARI ANTIGRAVITY.</p>
+                    <p className="text-blue-800/30 text-[8px] font-mono uppercase mt-1">Laporan masuk otomatis saat saya selesai bekerja.</p>
+                  </div>
+                )}
+              </div>
+          </div>
+                  </Panel>
+                  <PanelResizeHandle className="h-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-row-resize transition-colors" />
+                  <Panel defaultSize={15} minSize={10}>
+                    <div key="simulator" className="flex flex-col h-full overflow-hidden border border-blue-700/40 p-5 bg-white">
+              <span className={` font-bold text-blue-900 block text-xs mb-4`}>SIMULATE AGENT COMMIT</span>
+              <form onSubmit={handleSimulate} className="flex-1 flex flex-col justify-between space-y-3">
+                <div className="flex gap-2">
+                  <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}
+                    className="flex-1 bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px]"
+                  >
+                    <option>UI Agent</option><option>Backend Agent</option><option>Testing Agent</option><option>DevOps Agent</option>
+                  </select>
+                  <input type="number" value={filesCount} onChange={e => setFilesCount(Number(e.target.value))} min="1" max="10"
+                    className="w-12 bg-slate-50 border border-blue-700/20 p-2 text-center text-blue-950 focus:outline-none text-[10px]" required
+                  />
+                </div>
+                <input type="text" value={simMessage} onChange={e => setSimMessage(e.target.value)} placeholder="COMMIT MESSAGE"
+                  className="w-full bg-slate-50 border border-blue-700/20 p-2 text-blue-950 focus:outline-none text-[10px]" required
+                />
+                <button type="submit" disabled={isSimulating}
+                  className="w-full bg-blue-700 hover:bg-blue-600 disabled:bg-blue-800/60 text-white font-mono font-bold py-2 border border-blue-800 transition-all text-[10px] flex items-center justify-center gap-2"
+                >
+                  <Play className="h-3 w-3" />
+                  {isSimulating ? 'SIMULATING...' : 'SIMULATE COMMIT'}
+                </button>
+              </form>
+              {simStatus && (
+                <div className="p-2 border border-blue-700/20 bg-slate-50 font-mono text-[9px] text-blue-950">{simStatus}</div>
+              )}
+            </div>
+                  </Panel>
+                </PanelGroup>
+              </Panel>
+            </PanelGroup>
+          </Panel>
+          <PanelResizeHandle className="h-1.5 bg-blue-700/20 hover:bg-blue-700/80 cursor-row-resize transition-colors" />
+          <Panel defaultSize={25} minSize={10}>
+            {/* Terminal */}
+            <div key="terminal" className="flex flex-col h-full overflow-hidden">
+            <InteractiveTerminal 
+              
+              agents={agents} 
+              onCommand={async (cmd) => {
+                const res = await fetch('/api/terminal', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ command: cmd })
+                });
+                const data = await res.json();
+                return data.output || data.error || 'No output from command.';
+              }} 
+            />
+          </div>
+          </Panel>
+        </PanelGroup>
+
+        {/* Footer */}
+        <footer className="border-t-2 border-blue-700 pt-4 flex justify-between items-center text-blue-700/60 font-mono text-[9px]">
+          <span>© 2026 FIKRI BINTANG PURNOMO — ORCHESTRATOR DASHBOARD</span>
+          <span>V2.0.0</span>
+        </footer>
       </div>
-    </div>
 
+      <style jsx global>{`
+        @keyframes slide-in {
+          from { opacity: 0; transform: translateX(100%); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(-10deg); }
+          75% { transform: rotate(10deg); }
+        }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        .animate-wiggle { animation: wiggle 0.5s ease-in-out infinite; }
+
+        /* Window-like controls & resize style */
+        .window-card {
+          display: flex;
+          flex-direction: column;
+          border: 1px solid rgba(29, 78, 216, 0.4);
+          background-color: #ffffff;
+          resize: vertical;
+          overflow: auto;
+          min-height: 180px;
+          height: auto;
+          transition: border-color 0.2s;
+        }
+        .window-card:hover {
+          border-color: rgba(29, 78, 216, 0.8);
+        }
+        .window-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 12px;
+          background: #f1f5f9;
+          border-bottom: 1px solid rgba(29, 78, 216, 0.15);
+          font-family: monospace;
+          user-select: none;
+        }
+        .window-dots {
+          display: flex;
+          gap: 6px;
+        }
+        .window-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+        .window-content-inner {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          padding: 16px;
+        }
+        /* Custom scrollbars inside windows */
+        .window-card::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .window-card::-webkit-scrollbar-track {
+          background: #f8fafc;
+        }
+        .window-card::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .window-card::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
+    </div>
   );
 }
